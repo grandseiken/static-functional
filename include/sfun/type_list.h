@@ -169,7 +169,8 @@ using map = decltype(detail::map_impl<F>(A{}));
 template <type_list A, typename T>
 inline constexpr std::size_t find = find_if<A, detail::same_as_metafunction<T>::template predicate>;
 template <type_list A, typename T>
-inline constexpr std::size_t count = count_if<A, detail::same_as_metafunction<T>::template predicate>;
+inline constexpr std::size_t count =
+    count_if<A, detail::same_as_metafunction<T>::template predicate>;
 template <type_list A, template <typename> typename T>
 using wrap = map<A, detail::wrap_metafunction<T>::template functor>;
 

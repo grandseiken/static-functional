@@ -93,8 +93,8 @@ template <function auto F, typename R, typename, typename, typename, typename>
 struct cast_f;
 template <function auto F, typename R, typename... UsedSourceArgs, typename... UnusedSourceArgs,
           typename... UsedTargetArgs, typename... UnusedTargetArgs>
-struct cast_f<F, R, list<UsedSourceArgs...>, list<UnusedSourceArgs...>,
-              list<UsedTargetArgs...>, list<UnusedTargetArgs...>> {
+struct cast_f<F, R, list<UsedSourceArgs...>, list<UnusedSourceArgs...>, list<UsedTargetArgs...>,
+              list<UnusedTargetArgs...>> {
   inline static constexpr decltype(auto) f(UsedTargetArgs... args, UnusedTargetArgs...) {
     return static_cast<R>(F(static_cast<UsedSourceArgs>(args)..., UnusedSourceArgs{}...));
   }
