@@ -1,0 +1,56 @@
+BasedOnStyle: Google
+
+ColumnLimit: 100
+IndentWidth: 2
+ContinuationIndentWidth: 4
+AccessModifierOffset: -2
+Cpp11BracedListStyle: true
+DeriveLineEnding: false
+FixNamespaceComments: true
+AlignTrailingComments: true
+
+IncludeBlocks: Merge
+IncludeCategories:
+  - Regex: '^"'
+    SortPriority: 1
+  - Regex: '^<.*\.'
+    SortPriority: 2
+  - Regex: '^<[^.]>'
+    SortPriority: 3
+
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: true
+
+IndentCaseBlocks: true
+IndentCaseLabels: false
+
+IndentWrappedFunctionNames: false
+ConstructorInitializerIndentWidth: 0
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+AllowAllConstructorInitializersOnNextLine: true
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+
+BinPackArguments: true
+BinPackParameters: true
+AlignOperands: DontAlign
+AlignAfterOpenBracket: true
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+
+PenaltyBreakAssignment: 1
+PenaltyBreakBeforeFirstCallParameter: 1
+PenaltyBreakComment: 100
+PenaltyBreakFirstLessLess: 10
+PenaltyBreakString: 100
+PenaltyBreakTemplateDeclaration: 1
+PenaltyExcessCharacter: 10000
+PenaltyReturnTypeOnItsOwnLine: 10
