@@ -4,6 +4,7 @@ namespace sfun {
 namespace {
 
 struct A {
+  constexpr A() = default;
   constexpr int f() const {
     return 1;
   }
@@ -41,6 +42,9 @@ constexpr int accepts_a(A) {
 }
 constexpr int int_identity(int x) {
   return x;
+}
+constexpr int sum(int a, int b) {
+  return a + b;
 }
 
 template <typename T, typename U>
@@ -110,12 +114,27 @@ static_assert(equal<parameter_types_of<decltype(&A::f)>, list<const A&>>);
 static_assert(equal<parameter_types_of<decltype(&A::g)>, list<A&, int>>);
 static_assert(equal<parameter_types_of<decltype(&A::h)>, list<A&, int>>);
 
-static_assert(same_parameters<int(int, A), int(int, A)>);
-static_assert(same_parameters<void(int, A), int(int, A), A(int, A)>);
-static_assert(!same_parameters<int(int, A), int(A, int)>);
-static_assert(!same_parameters<int(int, A), int(A)>);
-static_assert(!same_parameters<int(int, A), int(int)>);
-static_assert(!same_parameters<int(int), int()>);
+static_assert(equal<function_type_of<decltype(unwrap<&f>)>, int()>);
+static_assert(equal<function_type_of<decltype(unwrap<&A::f>)>, int(const A&)>);
+static_assert(equal<function_type_of<decltype(unwrap<&A::g>)>, void(A&, int)>);
+static_assert(unwrap<&A::f>(A{}) == 1);
+static_assert(unwrap<&f>() == 2);
+static_assert(unwrap<+h>(0) == 3);
+
+static_assert(sequencable<int(int, A), int(int, A)>);
+static_assert(sequencable<void(int, A), int(int, A), A(int, A)>);
+static_assert(!sequencable<int(int, A), int(A, int)>);
+static_assert(!sequencable<int(int, A), int(A)>);
+static_assert(!sequencable<int(int, A), int(int)>);
+static_assert(!sequencable<int(int), int()>);
+
+static_assert(equal<function_type_of<decltype(sequence<&g, +h>)>, int(int)>);
+static_assert(equal<function_type_of<decltype(sequence<+h, &g>)>, void(int)>);
+static_assert(equal<function_type_of<decltype(sequence<&A::g2, &A::f>)>, int(const A&)>);
+static_assert(equal<function_type_of<decltype(sequence<&A::f, &A::g2>)>, void(const A&)>);
+static_assert(sequence<&f2, +h>(0) == 3);
+static_assert(sequence<+h, f2>(0) == 2);
+static_assert(sequence<&A::g2, &A::f>(A{}) == 1);
 
 static_assert(castable_to<void(int, int), void(int, int, int)>);
 static_assert(castable_to<void(int, int), void(int)>);
@@ -127,21 +146,6 @@ static_assert(castable_to<ConvertsToA(), A()>);
 static_assert(!castable_to<A(), ConvertsToA()>);
 static_assert(castable_to<void(A), void(ConvertsToA)>);
 static_assert(!castable_to<void(ConvertsToA), void(A)>);
-
-static_assert(equal<function_type_of<decltype(unwrap<&f>)>, int()>);
-static_assert(equal<function_type_of<decltype(unwrap<&A::f>)>, int(const A&)>);
-static_assert(equal<function_type_of<decltype(unwrap<&A::g>)>, void(A&, int)>);
-static_assert(unwrap<&A::f>(A{}) == 1);
-static_assert(unwrap<&f>() == 2);
-static_assert(unwrap<+h>(0) == 3);
-
-static_assert(equal<function_type_of<decltype(sequence<&g, +h>)>, int(int)>);
-static_assert(equal<function_type_of<decltype(sequence<+h, &g>)>, void(int)>);
-static_assert(equal<function_type_of<decltype(sequence<&A::g2, &A::f>)>, int(const A&)>);
-static_assert(equal<function_type_of<decltype(sequence<&A::f, &A::g2>)>, void(const A&)>);
-static_assert(sequence<&f2, +h>(0) == 3);
-static_assert(sequence<+h, f2>(0) == 2);
-static_assert(sequence<&A::g2, &A::f>(A{}) == 1);
 
 static_assert(equal<function_type_of<decltype(cast<void(), &g>)>, void()>);
 static_assert(equal<function_type_of<decltype(cast<void(int, int), &g>)>, void(int, int)>);
@@ -160,6 +164,23 @@ static_assert(cast<float(float), &int_identity>(1.1f) == 1.f);
 static_assert(cast<A(), &make_converts_to_a>().f() == 1);
 static_assert(cast<int(ConvertsToA), &accepts_a>(ConvertsToA{}) == 4);
 static_assert(cast<int(const ConvertsToA&), &accepts_a>(ConvertsToA{}) == 4);
+
+static_assert(bindable_front<void()>);
+static_assert(bindable_front<void(int)>);
+static_assert(bindable_front<void(int), int>);
+static_assert(bindable_front<int(int, A), int>);
+static_assert(bindable_front<void(A), ConvertsToA>);
+static_assert(bindable_front<void(A, float), ConvertsToA, int>);
+static_assert(!bindable_front<void(), int>);
+static_assert(!bindable_front<void(ConvertsToA), A>);
+
+static_assert(equal<function_type_of<decltype(bind_front<&int_identity, 42>)>, int()>);
+static_assert(equal<function_type_of<decltype(bind_front<&sum, 1>)>, int(int)>);
+static_assert(equal<function_type_of<decltype(bind_front<&A::f, A{}>)>, int()>);
+static_assert(bind_front<&int_identity, 42>() == 42);
+static_assert(bind_front<&sum, 2>(1) == 3);
+static_assert(bind_front<&sum, 4, 5>() == 9);
+static_assert(bind_front<&A::f, A{}>() == 1);
 
 }  // namespace
 }  // namespace sfun

@@ -23,6 +23,13 @@ struct function_traits_impl {
   inline static constexpr bool is_function_ref = Ref;
   inline static constexpr bool is_member_function_ptr = MemPtr;
 };
+
+template <typename T>
+using is_default_constructible = std::is_constructible<T>;
+template <typename... Ts, typename... Args>
+constexpr bool all_constructible(list<Ts...>, list<Args...>) {
+  return (std::is_constructible_v<Ts, Args> && ...);
+}
 }  // namespace detail
 
 template <typename>
@@ -106,11 +113,11 @@ struct sequence_f<list<Args...>, F...> {
 }  // namespace detail
 
 template <typename T, typename... Rest>
-concept same_parameters = functional<T> &&(functional<Rest>&&...) &&
+concept sequencable = functional<T> &&(functional<Rest>&&...) &&
     (std::is_same_v<parameter_types_of<T>, parameter_types_of<Rest>> && ...);
 
 template <function auto F, function auto... Rest>
-requires same_parameters<decltype(F), decltype(Rest)...>
+requires sequencable<decltype(F), decltype(Rest)...>
 inline constexpr auto sequence =
     &detail::sequence_f<parameter_types_of<decltype(F)>, unwrap<F>, unwrap<Rest>...>::f;
 
@@ -128,13 +135,6 @@ struct cast_f<F, R, list<UsedSourceArgs...>, list<UnusedSourceArgs...>, list<Use
     return static_cast<R>(F(static_cast<UsedSourceArgs>(args)..., UnusedSourceArgs{}...));
   }
 };
-
-template <typename T>
-using is_default_constructible = std::is_constructible<T>;
-template <typename... SourceArgs, typename... TargetArgs>
-constexpr bool all_constructible(list<SourceArgs...>, list<TargetArgs...>) {
-  return (std::is_constructible_v<SourceArgs, TargetArgs> && ...);
-}
 
 template <functional Source, functional Target>
 struct cast_impl {
@@ -181,6 +181,47 @@ concept castable_to = functional<Source> && functional<Target> &&
 template <function_type T, function auto F>
 requires castable_to<decltype(F), T>
 inline constexpr auto cast = detail::cast_if<T, unwrap<F>>::value;
+
+//-------------------------------------------------------------------------------------------------
+// bind_front
+//-------------------------------------------------------------------------------------------------
+namespace detail {
+template <function auto F, type_list, type_list, auto...>
+struct bind_front_f;
+template <function auto F, typename... BoundArgs, typename... UnboundArgs, auto... Args>
+struct bind_front_f<F, list<BoundArgs...>, list<UnboundArgs...>, Args...> {
+  inline static constexpr decltype(auto) f(UnboundArgs... args) {
+    return F(BoundArgs(Args)..., args...);
+  }
+};
+
+template <functional FunctionType, auto... Args>
+struct bind_front_impl {
+  using args = parameter_types_of<FunctionType>;
+  using bound_args = sublist<args, 0, sizeof...(Args)>;
+  using unbound_args = sublist<args, sizeof...(Args)>;
+  template <function auto F>
+  inline static constexpr auto bind = &bind_front_f<F, bound_args, unbound_args, Args...>::f;
+};
+
+template <function auto F, auto... Args>
+struct bind_front_if {
+  static inline constexpr auto value = bind_front_impl<decltype(F), Args...>::template bind<F>;
+};
+template <function auto F>
+struct bind_front_if<F> {
+  static inline constexpr auto value = F;
+};
+}  // namespace detail
+
+template <typename F, typename... Args>
+concept bindable_front = functional<F> &&
+    sizeof...(Args) <= size<parameter_types_of<F>>&& detail::all_constructible(
+                             sublist<parameter_types_of<F>, 0, sizeof...(Args)>{}, list<Args...>{});
+
+template <function auto F, auto... Args>
+requires bindable_front<decltype(F), decltype(Args)...>
+inline constexpr auto bind_front = detail::bind_front_if<unwrap<F>, Args...>::value;
 
 }  // namespace sfun
 
