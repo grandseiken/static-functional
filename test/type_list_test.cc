@@ -117,6 +117,20 @@ static_assert(equal<sublist<list<A, B, C>, 1, 3>, list<B, C>>);
 static_assert(equal<sublist<list<A, B, C>, 2, 3>, list<C>>);
 static_assert(equal<sublist<list<A, B, C>, 3, 3>, list<>>);
 
+static_assert(equal<erase<list<>, 0>, list<>>);
+static_assert(equal<erase<list<A>, 0>, list<>>);
+static_assert(equal<erase<list<A>, 0, 1>, list<>>);
+static_assert(equal<erase<list<A, B>, 0>, list<>>);
+static_assert(equal<erase<list<A, B>, 0, 1>, list<B>>);
+static_assert(equal<erase<list<A, B>, 0, 2>, list<>>);
+static_assert(equal<erase<list<A, B>, 1>, list<A>>);
+static_assert(equal<erase<list<A, B>, 1, 1>, list<A>>);
+static_assert(equal<erase<list<A, B, C>, 0, 1>, list<B, C>>);
+static_assert(equal<erase<list<A, B, C>, 1, 1>, list<A, C>>);
+static_assert(equal<erase<list<A, B, C>, 2, 1>, list<A, B>>);
+static_assert(equal<erase<list<A, B, C>, 0, 2>, list<C>>);
+static_assert(equal<erase<list<A, B, C>, 1>, list<A>>);
+
 static_assert(equal<select<list<>>, list<>>);
 static_assert(equal<select<list<A>, 0>, list<A>>);
 static_assert(equal<select<list<A, B>, 0>, list<A>>);
@@ -150,6 +164,10 @@ static_assert(find_if<list<A, B, B>, is_a> == 0);
 static_assert(find_if<list<B, A, B>, is_a> == 1);
 static_assert(find_if<list<B, B, A>, is_a> == 2);
 static_assert(find_if<list<B, B, B>, is_a> == 3);
+static_assert(find_if_not<list<>, is_a> == 0);
+static_assert(find_if_not<list<B, A>, is_a> == 0);
+static_assert(find_if_not<list<A, B>, is_a> == 1);
+static_assert(find_if_not<list<A, A>, is_a> == 2);
 static_assert(find<list<A, B, B>, A> == 0);
 static_assert(find<list<B, A, B>, A> == 1);
 static_assert(find<list<B, B, A>, A> == 2);
@@ -189,5 +207,16 @@ static_assert(equal<map<list<A, B, C>, Wrapper>, list<Wrapper<A>, Wrapper<B>, Wr
 static_assert(equal<map<list<A, B, C>, wrapper_alias>, list<Wrapper<A>, Wrapper<B>, Wrapper<C>>>);
 static_assert(equal<map<list<A, B, C>, list>, list<list<A>, list<B>, list<C>>>);
 static_assert(equal<map<list<A, B>, DefaultPair>, list<DefaultPair<A, A>, DefaultPair<B, B>>>);
+
+static_assert(equal<remove_if<list<>, is_a>, list<>>);
+static_assert(equal<remove_if<list<A>, is_a>, list<>>);
+static_assert(equal<remove_if<list<B>, is_a>, list<B>>);
+static_assert(equal<remove_if<list<A, A>, is_a>, list<>>);
+static_assert(equal<remove_if<list<A, B>, is_a>, list<B>>);
+static_assert(equal<remove_if<list<B, A>, is_a>, list<B>>);
+static_assert(equal<remove_if<list<B, B>, is_a>, list<B, B>>);
+static_assert(equal<remove<list<A, B, C, D>, A>, list<B, C, D>>);
+static_assert(equal<remove<list<D, C, B, A>, A>, list<D, C, B>>);
+static_assert(equal<remove<list<B, A, A, C>, A>, list<B, C>>);
 }  // namespace
 }  // namespace sfun

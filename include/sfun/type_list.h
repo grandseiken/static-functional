@@ -100,6 +100,9 @@ template <type_list A>
 requires(!empty<A>) using drop_back = decltype(detail::drop_back_impl(A{}));
 template <type_list A, std::size_t Index, std::size_t Size = npos>
 requires(Index <= size<A>) using sublist = decltype(detail::sublist_impl<Index, Size>(A{}));
+template <type_list A, std::size_t Index, std::size_t Size = npos>
+requires(Index <= size<A>) using erase = concat<
+    sublist<A, 0, Index>, sublist<A, Index + (Size <= size<A> - Index ? Size : size<A> - Index)>>;
 template <type_list A, std::size_t... N>
 requires((N < size<A>)&&...) using select = list<get<A, N>...>;
 template <template <typename...> typename F, typename... Ts>
@@ -157,6 +160,12 @@ struct same_as_metafunction {
   template <typename U>
   struct predicate : std::is_same<T, U> {};
 };
+
+template <template <typename...> typename P>
+struct negation_metafunction {
+  template <typename T>
+  struct predicate : std::negation<P<T>> {};
+};
 }  // namespace detail
 
 template <type_list A, template <typename...> typename P>
@@ -169,16 +178,24 @@ template <type_list A, template <typename...> typename P>
 inline constexpr std::size_t find_if = detail::find_if_impl<P>(A{});
 template <type_list A, template <typename...> typename P>
 inline constexpr std::size_t count_if = detail::count_if_impl<P>(A{});
-template <type_list A, template <typename...> typename P>
-using filter = decltype(detail::filter_impl<P>(A{}));
-template <type_list A, template <typename...> typename F>
-using map = decltype(detail::map_impl<F>(A{}));
 
+template <type_list A, template <typename...> typename P>
+inline constexpr std::size_t find_if_not =
+    find_if<A, detail::negation_metafunction<P>::template predicate>;
 template <type_list A, typename T>
 inline constexpr std::size_t find = find_if<A, detail::same_as_metafunction<T>::template predicate>;
 template <type_list A, typename T>
 inline constexpr std::size_t count =
     count_if<A, detail::same_as_metafunction<T>::template predicate>;
+
+template <type_list A, template <typename...> typename P>
+using filter = decltype(detail::filter_impl<P>(A{}));
+template <type_list A, template <typename...> typename F>
+using map = decltype(detail::map_impl<F>(A{}));
+template <type_list A, template <typename...> typename P>
+using remove_if = filter<A, detail::negation_metafunction<P>::template predicate>;
+template <type_list A, typename T>
+using remove = remove_if<A, detail::same_as_metafunction<T>::template predicate>;
 
 }  // namespace sfun
 

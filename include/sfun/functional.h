@@ -66,6 +66,9 @@ using parameter_types_of = typename function_traits<T>::parameter_types;
 template <function_type T>
 using function_ptr = T*;
 
+//-------------------------------------------------------------------------------------------------
+// unwrap
+//-------------------------------------------------------------------------------------------------
 namespace detail {
 template <member_function auto F, typename>
 struct unwrap_f;
@@ -88,6 +91,32 @@ struct unwrap_if<F, true> {
 template <function auto F>
 inline constexpr auto unwrap = detail::unwrap_if<F>::value;
 
+//-------------------------------------------------------------------------------------------------
+// sequence
+//-------------------------------------------------------------------------------------------------
+namespace detail {
+template <typename, function auto... F>
+struct sequence_f;
+template <typename... Args, function auto... F>
+struct sequence_f<list<Args...>, F...> {
+  inline static constexpr decltype(auto) f(Args... args) {
+    return (F(args...), ...);
+  }
+};
+}  // namespace detail
+
+template <typename T, typename... Rest>
+concept same_parameters = functional<T> &&(functional<Rest>&&...) &&
+    (std::is_same_v<parameter_types_of<T>, parameter_types_of<Rest>> && ...);
+
+template <function auto F, function auto... Rest>
+requires same_parameters<decltype(F), decltype(Rest)...>
+inline constexpr auto sequence =
+    &detail::sequence_f<parameter_types_of<decltype(F)>, unwrap<F>, unwrap<Rest>...>::f;
+
+//-------------------------------------------------------------------------------------------------
+// cast
+//-------------------------------------------------------------------------------------------------
 namespace detail {
 template <function auto F, typename R, typename, typename, typename, typename>
 struct cast_f;
@@ -141,31 +170,13 @@ template <function_type T, function auto F>
 struct cast_if<T, F, false> {
   static inline constexpr auto value = cast_impl<decltype(F), T>::template cast<F>;
 };
-
-template <typename, function auto... F>
-struct sequence_f;
-template <typename... Args, function auto... F>
-struct sequence_f<list<Args...>, F...> {
-  inline static constexpr decltype(auto) f(Args... args) {
-    return (F(args...), ...);
-  }
-};
 }  // namespace detail
-
-template <typename T, typename... Rest>
-concept same_parameters = functional<T> &&(functional<Rest>&&...) &&
-    (std::is_same_v<parameter_types_of<T>, parameter_types_of<Rest>> && ...);
 
 template <typename Source, typename Target>
 concept castable_to = functional<Source> && functional<Target> &&
     detail::cast_impl<Source, Target>::return_type_convertible &&
     detail::cast_impl<Source, Target>::matching_parameters_convertible &&
     detail::cast_impl<Source, Target>::missing_parameters_default_constructible;
-
-template <function auto F, function auto... Rest>
-requires same_parameters<decltype(F), decltype(Rest)...>
-inline constexpr auto sequence =
-    &detail::sequence_f<parameter_types_of<decltype(F)>, unwrap<F>, unwrap<Rest>...>::f;
 
 template <function_type T, function auto F>
 requires castable_to<decltype(F), T>
