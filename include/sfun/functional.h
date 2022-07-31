@@ -242,6 +242,83 @@ template <function auto F, auto... Values>
 requires bindable_back<decltype(F), decltype(Values)...>
 inline constexpr auto bind_back = detail::bind_if<false, unwrap<F>, Values...>::value;
 
+//-------------------------------------------------------------------------------------------------
+// compose / compose_front / compose_back
+//-------------------------------------------------------------------------------------------------
+namespace detail {
+template <typename, typename, typename, function auto G, function auto F>
+struct compose_front_f;
+template <typename... GArgs, typename... FArgs, typename ComposedArg, function auto G,
+          function auto F>
+struct compose_front_f<list<GArgs...>, list<FArgs...>, ComposedArg, G, F> {
+  inline static constexpr decltype(auto) f(FArgs... fargs, GArgs... gargs) {
+    return G(ComposedArg(F(fargs...)), gargs...);
+  }
+};
+
+template <typename, typename, typename, function auto G, function auto F>
+struct compose_back_f;
+template <typename... GArgs, typename... FArgs, typename ComposedArg, function auto G,
+          function auto F>
+struct compose_back_f<list<GArgs...>, list<FArgs...>, ComposedArg, G, F> {
+  inline static constexpr decltype(auto) f(GArgs... gargs, FArgs... fargs) {
+    return G(gargs..., ComposedArg(F(fargs...)));
+  }
+};
+
+template <functional GType, functional FType>
+struct compose_front_impl {
+  using fargs = parameter_types_of<FType>;
+  using gargs = drop_front<parameter_types_of<GType>>;
+  using composed_arg = front<parameter_types_of<GType>>;
+
+  inline static constexpr bool type_convertible =
+      std::is_constructible_v<composed_arg, return_type_of<FType>>;
+
+  template <function auto G, function auto F>
+  inline static constexpr auto compose = &compose_front_f<gargs, fargs, composed_arg, G, F>::f;
+};
+
+template <functional GType, functional FType>
+struct compose_back_impl {
+  using fargs = parameter_types_of<FType>;
+  using gargs = drop_back<parameter_types_of<GType>>;
+  using composed_arg = back<parameter_types_of<GType>>;
+
+  inline static constexpr bool type_convertible =
+      std::is_constructible_v<composed_arg, return_type_of<FType>>;
+
+  template <function auto G, function auto F>
+  inline static constexpr auto compose = &compose_back_f<gargs, fargs, composed_arg, G, F>::f;
+};
+}  // namespace detail
+
+template <typename G, typename F>
+concept composable_front = functional<G> && functional<F> && size<parameter_types_of<G>>
+>= 1 && detail::compose_front_impl<G, F>::type_convertible;
+
+template <typename G, typename F>
+concept composable_back = functional<G> && functional<F> && size<parameter_types_of<G>>
+>= 1 && detail::compose_back_impl<G, F>::type_convertible;
+
+template <typename G, typename F>
+concept composable = composable_front<G, F> && size<parameter_types_of<G>>
+== 1;
+
+template <function auto G, function auto F>
+requires composable_front<decltype(G), decltype(F)>
+inline constexpr auto compose_front =
+    detail::compose_front_impl<decltype(G), decltype(F)>::template compose<unwrap<G>, unwrap<F>>;
+
+template <function auto G, function auto F>
+requires composable_back<decltype(G), decltype(F)>
+inline constexpr auto compose_back =
+    detail::compose_back_impl<decltype(G), decltype(F)>::template compose<unwrap<G>, unwrap<F>>;
+
+template <function auto G, function auto F>
+requires composable<decltype(G), decltype(F)>
+inline constexpr auto compose = compose_front<G, F>;
+
 }  // namespace sfun
 
 #endif

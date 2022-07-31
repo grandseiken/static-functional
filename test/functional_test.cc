@@ -23,6 +23,13 @@ struct ConvertsToA {
 struct NotDefaultConstructible {
   NotDefaultConstructible(int) {}
 };
+struct MoveOnly {
+  MoveOnly() = default;
+  MoveOnly(MoveOnly&&) = default;
+  MoveOnly(const MoveOnly&) = delete;
+  MoveOnly& operator=(MoveOnly&&) = default;
+  MoveOnly& operator=(const MoveOnly&) = delete;
+};
 constexpr int f() {
   return 2;
 }
@@ -42,6 +49,10 @@ const ConvertsToA& const_ref_converts_to_a() {
 }
 constexpr int accepts_a(A) {
   return 4;
+}
+constexpr void accepts_move_only(MoveOnly) {}
+constexpr MoveOnly make_move_only() {
+  return {};
 }
 constexpr int int_identity(int x) {
   return x;
@@ -217,5 +228,34 @@ static_assert(bind_back<&sum, 4, 5>() == 9);
 static_assert(bind_back<&minus, 4>(1) == -3);
 static_assert(bind_back<&A::g3, 3>(A{}) == 3);
 
+static_assert(composable_front<void(int), int(int)>);
+static_assert(composable_front<void(int, A), int(void)>);
+static_assert(!composable_front<void(int, A), A(void)>);
+static_assert(composable_back<void(int), int(int)>);
+static_assert(composable_back<void(int, A), A(void)>);
+static_assert(composable_back<void(int, A), ConvertsToA(void)>);
+static_assert(!composable_back<void(int, A), int(void)>);
+static_assert(composable<void(int), int(void)>);
+static_assert(!composable<void(int, A), int(void)>);
+static_assert(!composable<void(int, A), A(void)>);
+
+static_assert(equal<function_type_of<decltype(compose_front<&int_identity, &f>)>, int()>);
+static_assert(equal<function_type_of<decltype(compose_back<&A::g, &f>)>, void(A&)>);
+static_assert(equal<function_type_of<decltype(compose<&int_identity, &int_identity>)>, int(int)>);
+static_assert(equal<function_type_of<decltype(compose<&g, &f>)>, void()>);
+static_assert(compose<&int_identity, &f>() == 2);
+static_assert(compose<&int_identity, &int_identity>(4) == 4);
+static_assert(compose<&int_identity, &A::f>(A{}) == 1);
+static_assert(compose_front<&sum, &minus>(4, 3, 2) == 3);
+static_assert(compose_back<&sum, &minus>(4, 3, 2) == 5);
+static_assert(compose_front<&minus, &sum>(4, 3, 2) == 5);
+static_assert(compose_back<&minus, &sum>(4, 3, 2) == -1);
+
 }  // namespace
 }  // namespace sfun
+
+int main() {
+  sfun::sequence<sfun::bind_back<sfun::cast<void(unsigned long), &sfun::g>, 1ul>,
+                 sfun::bind_front<&sfun::A::f, sfun::A{}>>();
+  return 0;
+}
