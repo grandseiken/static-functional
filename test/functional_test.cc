@@ -10,6 +10,9 @@ struct A {
   }
   constexpr void g(int) {}
   constexpr void g2() const {}
+  constexpr int g3(int x) const {
+    return x;
+  }
   void h(int);
 };
 struct ConvertsToA {
@@ -45,6 +48,9 @@ constexpr int int_identity(int x) {
 }
 constexpr int sum(int a, int b) {
   return a + b;
+}
+constexpr int minus(int a, int b) {
+  return a - b;
 }
 
 template <typename T, typename U>
@@ -117,6 +123,7 @@ static_assert(equal<parameter_types_of<decltype(&A::h)>, list<A&, int>>);
 static_assert(equal<function_type_of<decltype(unwrap<&f>)>, int()>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::f>)>, int(const A&)>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::g>)>, void(A&, int)>);
+static_assert(unwrap<&f> == &f);
 static_assert(unwrap<&A::f>(A{}) == 1);
 static_assert(unwrap<&f>() == 2);
 static_assert(unwrap<+h>(0) == 3);
@@ -158,6 +165,7 @@ static_assert(
     equal<function_type_of<decltype(cast<int(ConvertsToA&), &accepts_a>)>, int(ConvertsToA&)>);
 static_assert(equal<function_type_of<decltype(cast<int(const ConvertsToA&), &accepts_a>)>,
                     int(const ConvertsToA&)>);
+static_assert(cast<int(), &f> == &f);
 static_assert(cast<float(), &f>() == 2.f);
 static_assert(cast<int(int), &f>(0) == 2);
 static_assert(cast<float(float), &int_identity>(1.1f) == 1.f);
@@ -170,17 +178,44 @@ static_assert(bindable_front<void(int)>);
 static_assert(bindable_front<void(int), int>);
 static_assert(bindable_front<int(int, A), int>);
 static_assert(bindable_front<void(A), ConvertsToA>);
-static_assert(bindable_front<void(A, float), ConvertsToA, int>);
+static_assert(bindable_front<void(A, float, bool, bool), ConvertsToA, int>);
 static_assert(!bindable_front<void(), int>);
 static_assert(!bindable_front<void(ConvertsToA), A>);
+static_assert(!bindable_front<void(int, A), A>);
+static_assert(!bindable_front<void(A, float, bool), int, ConvertsToA>);
+static_assert(bindable_back<void()>);
+static_assert(bindable_back<void(int)>);
+static_assert(bindable_back<void(int), int>);
+static_assert(bindable_back<int(A, int), int>);
+static_assert(bindable_back<void(A), ConvertsToA>);
+static_assert(bindable_back<void(bool, bool, A, float), ConvertsToA, int>);
+static_assert(!bindable_back<void(), int>);
+static_assert(!bindable_back<void(ConvertsToA), A>);
+static_assert(!bindable_back<void(A, int), A>);
+static_assert(!bindable_back<void(bool, A, float), int, ConvertsToA>);
 
+static_assert(equal<function_type_of<decltype(bind_front<&int_identity>)>, int(int)>);
 static_assert(equal<function_type_of<decltype(bind_front<&int_identity, 42>)>, int()>);
 static_assert(equal<function_type_of<decltype(bind_front<&sum, 1>)>, int(int)>);
 static_assert(equal<function_type_of<decltype(bind_front<&A::f, A{}>)>, int()>);
+static_assert(equal<function_type_of<decltype(bind_back<&int_identity>)>, int(int)>);
+static_assert(equal<function_type_of<decltype(bind_back<&int_identity, 42>)>, int()>);
+static_assert(equal<function_type_of<decltype(bind_back<&sum, 1>)>, int(int)>);
+static_assert(equal<function_type_of<decltype(bind_back<&A::g, 1>)>, void(A&)>);
+static_assert(bind_front<&f> == &f);
+static_assert(bind_front<&int_identity>(42) == 42);
 static_assert(bind_front<&int_identity, 42>() == 42);
 static_assert(bind_front<&sum, 2>(1) == 3);
 static_assert(bind_front<&sum, 4, 5>() == 9);
+static_assert(bind_front<&minus, 4>(1) == 3);
 static_assert(bind_front<&A::f, A{}>() == 1);
+static_assert(bind_back<&f> == &f);
+static_assert(bind_back<&int_identity>(42) == 42);
+static_assert(bind_back<&int_identity, 42>() == 42);
+static_assert(bind_back<&sum, 2>(1) == 3);
+static_assert(bind_back<&sum, 4, 5>() == 9);
+static_assert(bind_back<&minus, 4>(1) == -3);
+static_assert(bind_back<&A::g3, 3>(A{}) == 3);
 
 }  // namespace
 }  // namespace sfun

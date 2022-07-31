@@ -183,45 +183,64 @@ requires castable_to<decltype(F), T>
 inline constexpr auto cast = detail::cast_if<T, unwrap<F>>::value;
 
 //-------------------------------------------------------------------------------------------------
-// bind_front
+// bind_front / bind_back
 //-------------------------------------------------------------------------------------------------
 namespace detail {
-template <function auto F, type_list, type_list, auto...>
-struct bind_front_f;
-template <function auto F, typename... BoundArgs, typename... UnboundArgs, auto... Args>
-struct bind_front_f<F, list<BoundArgs...>, list<UnboundArgs...>, Args...> {
+template <bool Front, function auto F, type_list, type_list, auto...>
+struct bind_f;
+template <bool Front, function auto F, typename... BoundArgs, typename... UnboundArgs,
+          auto... Values>
+struct bind_f<Front, F, list<BoundArgs...>, list<UnboundArgs...>, Values...> {
   inline static constexpr decltype(auto) f(UnboundArgs... args) {
-    return F(BoundArgs(Args)..., args...);
+    if constexpr (Front) {
+      return F(BoundArgs(Values)..., args...);
+    } else {
+      return F(args..., BoundArgs(Values)...);
+    }
   }
 };
 
-template <functional FunctionType, auto... Args>
-struct bind_front_impl {
+template <bool Front, functional FunctionType, typename... Args>
+struct bind_impl {
   using args = parameter_types_of<FunctionType>;
-  using bound_args = sublist<args, 0, sizeof...(Args)>;
-  using unbound_args = sublist<args, sizeof...(Args)>;
-  template <function auto F>
-  inline static constexpr auto bind = &bind_front_f<F, bound_args, unbound_args, Args...>::f;
+  using bound_args = std::conditional_t<Front, sublist<args, 0, sizeof...(Args)>,
+                                        sublist<args, size<args> - sizeof...(Args)>>;
+  using unbound_args = std::conditional_t<Front, sublist<args, sizeof...(Args)>,
+                                          sublist<args, 0, size<args> - sizeof...(Args)>>;
+
+  inline static constexpr bool parameters_convertible =
+      all_constructible(bound_args{}, list<Args...>{});
+
+  template <function auto F, auto... Values>
+  inline static constexpr auto bind = &bind_f<Front, F, bound_args, unbound_args, Values...>::f;
 };
 
-template <function auto F, auto... Args>
-struct bind_front_if {
-  static inline constexpr auto value = bind_front_impl<decltype(F), Args...>::template bind<F>;
+template <bool Front, function auto F, auto... Values>
+struct bind_if {
+  static inline constexpr auto value =
+      bind_impl<Front, decltype(F), decltype(Values)...>::template bind<F, Values...>;
 };
-template <function auto F>
-struct bind_front_if<F> {
+template <bool Front, function auto F>
+struct bind_if<Front, F> {
   static inline constexpr auto value = F;
 };
 }  // namespace detail
 
 template <typename F, typename... Args>
-concept bindable_front = functional<F> &&
-    sizeof...(Args) <= size<parameter_types_of<F>>&& detail::all_constructible(
-                             sublist<parameter_types_of<F>, 0, sizeof...(Args)>{}, list<Args...>{});
+concept bindable_front = functional<F> && sizeof...(Args) <=
+    size<parameter_types_of<F>>&& detail::bind_impl<true, F, Args...>::parameters_convertible;
 
-template <function auto F, auto... Args>
-requires bindable_front<decltype(F), decltype(Args)...>
-inline constexpr auto bind_front = detail::bind_front_if<unwrap<F>, Args...>::value;
+template <typename F, typename... Args>
+concept bindable_back = functional<F> && sizeof...(Args) <=
+    size<parameter_types_of<F>>&& detail::bind_impl<false, F, Args...>::parameters_convertible;
+
+template <function auto F, auto... Values>
+requires bindable_front<decltype(F), decltype(Values)...>
+inline constexpr auto bind_front = detail::bind_if<true, unwrap<F>, Values...>::value;
+
+template <function auto F, auto... Values>
+requires bindable_back<decltype(F), decltype(Values)...>
+inline constexpr auto bind_back = detail::bind_if<false, unwrap<F>, Values...>::value;
 
 }  // namespace sfun
 
