@@ -5,6 +5,9 @@
 #include <type_traits>
 
 namespace sfun {
+//-------------------------------------------------------------------------------------------------
+// function_traits
+//-------------------------------------------------------------------------------------------------
 namespace detail {
 struct function_traits_not_impl {
   inline static constexpr bool is_function = false;
@@ -13,23 +16,16 @@ struct function_traits_not_impl {
   inline static constexpr bool is_member_function_ptr = false;
 };
 
-template <bool Type, bool Ptr, bool Ref, bool MemPtr, typename R, typename... Args>
+template <bool IsType, bool IsPtr, bool IsRef, bool IsMemPtr, typename R, typename... Args>
 struct function_traits_impl {
   using function_type = R(Args...);
   using return_type = R;
   using parameter_types = list<Args...>;
-  inline static constexpr bool is_function_type = Type;
-  inline static constexpr bool is_function_ptr = Ptr;
-  inline static constexpr bool is_function_ref = Ref;
-  inline static constexpr bool is_member_function_ptr = MemPtr;
+  inline static constexpr bool is_function_type = IsType;
+  inline static constexpr bool is_function_ptr = IsPtr;
+  inline static constexpr bool is_function_ref = IsRef;
+  inline static constexpr bool is_member_function_ptr = IsMemPtr;
 };
-
-template <typename T>
-using is_default_constructible = std::is_constructible<T>;
-template <typename... Ts, typename... Args>
-constexpr bool all_constructible(list<Ts...>, list<Args...>) {
-  return (std::is_constructible_v<Ts, Args> && ...);
-}
 }  // namespace detail
 
 template <typename>
@@ -53,6 +49,9 @@ template <typename C, typename R, typename... Args>
 struct function_traits<R (C::*)(Args...) const>
 : detail::function_traits_impl<false, false, false, true, R, const C&, Args...> {};
 
+//-------------------------------------------------------------------------------------------------
+// concepts & signatures
+//-------------------------------------------------------------------------------------------------
 template <typename T>
 concept member_function = function_traits<T>::is_member_function_ptr;
 template <typename T>
@@ -63,6 +62,8 @@ concept function_type = function_traits<T>::is_function_type;
 template <typename T>
 concept functional = function<T> || function_type<T>;
 
+template <function_type T>
+using function_ptr = T*;
 template <functional T>
 using function_type_of = typename function_traits<T>::function_type;
 template <functional T>
@@ -70,19 +71,25 @@ using return_type_of = typename function_traits<T>::return_type;
 template <functional T>
 using parameter_types_of = typename function_traits<T>::parameter_types;
 
-template <function_type T>
-using function_ptr = T*;
-
 //-------------------------------------------------------------------------------------------------
 // unwrap
 //-------------------------------------------------------------------------------------------------
 namespace detail {
-template <member_function auto F, typename>
+template <typename T>
+constexpr decltype(auto) maybe_move(typename std::remove_reference_t<T>& v) {
+  if constexpr (!std::is_const_v<std::remove_reference_t<T>> && !std::is_lvalue_reference_v<T>) {
+    return std::move(v);
+  } else {
+    return v;
+  }
+}
+
+template <member_function auto F, type_list>
 struct unwrap_f;
 template <member_function auto F, typename... Args>
 struct unwrap_f<F, list<Args...>> {
   static inline constexpr decltype(auto) f(Args... args) {
-    return std::invoke(F, args...);
+    return std::invoke(F, maybe_move<Args>(args)...);
   }
 };
 template <function auto F, bool MemPtr = member_function<decltype(F)>>
@@ -107,14 +114,21 @@ struct sequence_f;
 template <typename... Args, function auto... F>
 struct sequence_f<list<Args...>, F...> {
   inline static constexpr decltype(auto) f(Args... args) {
-    return (F(args...), ...);
+    if constexpr (sizeof...(F) == 1u) {
+      return (F(maybe_move<Args>(args)...), ...);
+    } else {
+      return (F(args...), ...);
+    }
   }
 };
 }  // namespace detail
 
 template <typename T, typename... Rest>
 concept sequencable = functional<T> &&(functional<Rest>&&...) &&
-    (std::is_same_v<parameter_types_of<T>, parameter_types_of<Rest>> && ...);
+    (std::is_same_v<parameter_types_of<T>, parameter_types_of<Rest>> && ...) &&
+    (sizeof...(Rest) == 0u ||
+     (none_of<parameter_types_of<T>, std::is_rvalue_reference> &&
+      all_of<parameter_types_of<T>, std::is_copy_constructible>));
 
 template <function auto F, function auto... Rest>
 requires sequencable<decltype(F), decltype(Rest)...>
@@ -125,14 +139,21 @@ inline constexpr auto sequence =
 // cast
 //-------------------------------------------------------------------------------------------------
 namespace detail {
-template <function auto F, typename R, typename, typename, typename, typename>
+template <typename T>
+using is_default_constructible = std::is_constructible<T>;
+template <typename... Ts, typename... Args>
+constexpr bool all_constructible(list<Ts...>, list<Args...>) {
+  return (std::is_constructible_v<Ts, Args> && ...);
+}
+
+template <function auto F, typename R, type_list, type_list, type_list, type_list>
 struct cast_f;
 template <function auto F, typename R, typename... UsedSourceArgs, typename... UnusedSourceArgs,
           typename... UsedTargetArgs, typename... UnusedTargetArgs>
 struct cast_f<F, R, list<UsedSourceArgs...>, list<UnusedSourceArgs...>, list<UsedTargetArgs...>,
               list<UnusedTargetArgs...>> {
   inline static constexpr decltype(auto) f(UsedTargetArgs... args, UnusedTargetArgs...) {
-    return static_cast<R>(F(static_cast<UsedSourceArgs>(args)..., UnusedSourceArgs{}...));
+    return R(F(UsedSourceArgs(maybe_move<UsedTargetArgs>(args))..., UnusedSourceArgs{}...));
   }
 };
 
@@ -142,8 +163,8 @@ struct cast_impl {
   using target_args = parameter_types_of<Target>;
   inline static constexpr auto n =
       size<source_args> < size<target_args> ? size<source_args> : size<target_args>;
-  using used_source_args = sublist<source_args, 0, n>;
-  using used_target_args = sublist<target_args, 0, n>;
+  using used_source_args = sublist<source_args, 0u, n>;
+  using used_target_args = sublist<target_args, 0u, n>;
   using unused_source_args = sublist<source_args, n>;
   using unused_target_args = sublist<target_args, n>;
 
@@ -193,9 +214,9 @@ template <bool Front, function auto F, typename... BoundArgs, typename... Unboun
 struct bind_f<Front, F, list<BoundArgs...>, list<UnboundArgs...>, Values...> {
   inline static constexpr decltype(auto) f(UnboundArgs... args) {
     if constexpr (Front) {
-      return F(BoundArgs(Values)..., args...);
+      return F(BoundArgs(Values)..., maybe_move<UnboundArgs>(args)...);
     } else {
-      return F(args..., BoundArgs(Values)...);
+      return F(maybe_move<UnboundArgs>(args)..., BoundArgs(Values)...);
     }
   }
 };
@@ -203,13 +224,13 @@ struct bind_f<Front, F, list<BoundArgs...>, list<UnboundArgs...>, Values...> {
 template <bool Front, functional FunctionType, typename... Args>
 struct bind_impl {
   using args = parameter_types_of<FunctionType>;
-  using bound_args = std::conditional_t<Front, sublist<args, 0, sizeof...(Args)>,
+  using bound_args = std::conditional_t<Front, sublist<args, 0u, sizeof...(Args)>,
                                         sublist<args, size<args> - sizeof...(Args)>>;
   using unbound_args = std::conditional_t<Front, sublist<args, sizeof...(Args)>,
-                                          sublist<args, 0, size<args> - sizeof...(Args)>>;
+                                          sublist<args, 0u, size<args> - sizeof...(Args)>>;
 
   inline static constexpr bool parameters_convertible =
-      all_constructible(bound_args{}, list<Args...>{});
+      all_constructible(bound_args{}, list<const Args&...>{});
 
   template <function auto F, auto... Values>
   inline static constexpr auto bind = &bind_f<Front, F, bound_args, unbound_args, Values...>::f;
@@ -246,23 +267,23 @@ inline constexpr auto bind_back = detail::bind_if<false, unwrap<F>, Values...>::
 // compose / compose_front / compose_back
 //-------------------------------------------------------------------------------------------------
 namespace detail {
-template <typename, typename, typename, function auto G, function auto F>
+template <type_list, type_list, typename, function auto G, function auto F>
 struct compose_front_f;
 template <typename... GArgs, typename... FArgs, typename ComposedArg, function auto G,
           function auto F>
 struct compose_front_f<list<GArgs...>, list<FArgs...>, ComposedArg, G, F> {
   inline static constexpr decltype(auto) f(FArgs... fargs, GArgs... gargs) {
-    return G(ComposedArg(F(fargs...)), gargs...);
+    return G(ComposedArg(F(maybe_move<FArgs>(fargs)...)), maybe_move<GArgs>(gargs)...);
   }
 };
 
-template <typename, typename, typename, function auto G, function auto F>
+template <type_list, type_list, typename, function auto G, function auto F>
 struct compose_back_f;
 template <typename... GArgs, typename... FArgs, typename ComposedArg, function auto G,
           function auto F>
 struct compose_back_f<list<GArgs...>, list<FArgs...>, ComposedArg, G, F> {
   inline static constexpr decltype(auto) f(GArgs... gargs, FArgs... fargs) {
-    return G(gargs..., ComposedArg(F(fargs...)));
+    return G(maybe_move<GArgs>(gargs)..., ComposedArg(F(maybe_move<FArgs>(fargs)...)));
   }
 };
 
@@ -294,16 +315,15 @@ struct compose_back_impl {
 }  // namespace detail
 
 template <typename G, typename F>
-concept composable_front = functional<G> && functional<F> && size<parameter_types_of<G>>
->= 1 && detail::compose_front_impl<G, F>::type_convertible;
+concept composable_front = functional<G> && functional<F> &&
+    1u <= size<parameter_types_of<G>>&& detail::compose_front_impl<G, F>::type_convertible;
 
 template <typename G, typename F>
-concept composable_back = functional<G> && functional<F> && size<parameter_types_of<G>>
->= 1 && detail::compose_back_impl<G, F>::type_convertible;
+concept composable_back = functional<G> && functional<F> &&
+    1u <= size<parameter_types_of<G>>&& detail::compose_back_impl<G, F>::type_convertible;
 
 template <typename G, typename F>
-concept composable = composable_front<G, F> && size<parameter_types_of<G>>
-== 1;
+concept composable = composable_front<G, F> && 1u == size<parameter_types_of<G>>;
 
 template <function auto G, function auto F>
 requires composable_front<decltype(G), decltype(F)>
