@@ -1,0 +1,17 @@
+build:msvc --copt=/std:c++20
+build:msvc --copt=/WX
+build:msvc --copt=/W4
+
+build:gcc --copt=-std=c++20
+build:gcc --copt=-Werror
+build:gcc --copt=-Wall
+
+build:clang --repo_env=CC=clang
+build:clang --copt=-std=c++20
+build:clang --copt=-Werror
+build:clang --copt=-Wall
+
+build:clang-cl --compiler=clang-cl
+build:clang-cl --copt=/std:c++20
+build:clang-cl --copt=/WX
+build:clang-cl --copt=/W4

@@ -9,3 +9,12 @@ cc_library(
   includes = ["include"],
   visibility = ["//visibility:public"],
 )
+
+cc_library(
+  name = "static_functional_test",
+  srcs = [
+    "test/type_list_test.cc",
+    "test/functional_test.cc",
+  ],
+  deps = [":static_functional"],
+)
