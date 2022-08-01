@@ -63,7 +63,7 @@ template <typename T>
 concept functional = function<T> || function_type<T>;
 
 template <function_type T>
-using function_ptr = T*;
+using ptr = T*;
 template <functional T>
 using function_type_of = typename function_traits<T>::function_type;
 template <functional T>
@@ -114,11 +114,7 @@ struct sequence_f;
 template <typename... Args, function auto... F>
 struct sequence_f<list<Args...>, F...> {
   inline static constexpr decltype(auto) f(Args... args) {
-    if constexpr (sizeof...(F) == 1u) {
-      return (F(maybe_move<Args>(args)...), ...);
-    } else {
-      return (F(args...), ...);
-    }
+    return (F(args...), ...);
   }
 };
 }  // namespace detail
@@ -134,6 +130,10 @@ template <function auto F, function auto... Rest>
 requires sequencable<decltype(F), decltype(Rest)...>
 inline constexpr auto sequence =
     &detail::sequence_f<parameter_types_of<decltype(F)>, unwrap<F>, unwrap<Rest>...>::f;
+
+template <function auto F>
+requires sequencable<decltype(F)>
+inline constexpr auto sequence<F> = F;
 
 //-------------------------------------------------------------------------------------------------
 // cast
