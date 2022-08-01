@@ -92,8 +92,8 @@ consteval auto apply_impl() {
 }
 }  // namespace detail
 
-template <type_list A, std::size_t N>
-requires(N < size<A>) using get = front<decltype(detail::get_impl<N>(A{}))>;
+template <type_list A, std::size_t Index>
+requires(Index < size<A>) using get = front<decltype(detail::get_impl<Index>(A{}))>;
 template <type_list A>
 requires(!empty<A>) using back = get<A, size<A> - 1u>;
 template <type_list A>
@@ -103,8 +103,8 @@ requires(Index <= size<A>) using sublist = decltype(detail::sublist_impl<Index, 
 template <type_list A, std::size_t Index, std::size_t Size = npos>
 requires(Index <= size<A>) using erase = concat<
     sublist<A, 0, Index>, sublist<A, Index + (Size <= size<A> - Index ? Size : size<A> - Index)>>;
-template <type_list A, std::size_t... N>
-requires((N < size<A>)&&...) using select = list<get<A, N>...>;
+template <type_list A, std::size_t... Indices>
+requires((Indices < size<A>)&&...) using select = list<get<A, Indices>...>;
 template <template <typename...> typename F, typename... Ts>
 using apply = front<decltype(detail::apply_impl<F, Ts...>())>;
 

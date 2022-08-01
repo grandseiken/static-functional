@@ -198,6 +198,7 @@ static_assert(!castable_to<A(), ConvertsToA()>);
 static_assert(castable_to<void(A), void(ConvertsToA)>);
 static_assert(!castable_to<void(ConvertsToA), void(A)>);
 static_assert(equal<function_type_of<decltype(cast<void(), &g>)>, void()>);
+static_assert(equal<function_type_of<decltype(cast<void(), &f>)>, void()>);
 static_assert(equal<function_type_of<decltype(cast<void(int, int), &g>)>, void(int, int)>);
 static_assert(equal<function_type_of<decltype(cast<void(), &f>)>, void()>);
 static_assert(equal<function_type_of<decltype(cast<A(), &make_converts_to_a>)>, A()>);
@@ -208,12 +209,14 @@ static_assert(
     equal<function_type_of<decltype(cast<int(ConvertsToA&), &accepts_a>)>, int(ConvertsToA&)>);
 static_assert(equal<function_type_of<decltype(cast<int(const ConvertsToA&), &accepts_a>)>,
                     int(const ConvertsToA&)>);
+static_assert(!is_noexcept<decltype(&f)>);
 static_assert(is_noexcept<decltype(cast<int() noexcept, &f>)>);
 static_assert(!is_noexcept<decltype(cast<float(), &f>)>);
 static_assert(cast<int(), &f> == &f);
 static_assert(cast<float(), &f>() == 2.f);
 static_assert(cast<int(int), &f>(0) == 2);
 static_assert(cast<float(float), &int_identity>(1.1f) == 1.f);
+static_assert(cast<int(), &int_identity>() == 0);
 static_assert(cast<A(), &make_converts_to_a>().f() == 1);
 static_assert(cast<int(ConvertsToA), &accepts_a>(ConvertsToA{}) == 4);
 static_assert(cast<int(const ConvertsToA&), &accepts_a>(ConvertsToA{}) == 4);

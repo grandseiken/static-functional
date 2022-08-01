@@ -100,7 +100,7 @@ inline constexpr bool is_noexcept = function_traits<T>::is_noexcept;
 //-------------------------------------------------------------------------------------------------
 namespace detail {
 template <typename T>
-inline constexpr bool should_move =
+inline constexpr bool should_move = std::is_move_constructible_v<std::remove_cvref_t<T>> &&
     !std::is_const_v<std::remove_reference_t<T>> && !std::is_lvalue_reference_v<T>;
 template <typename T>
 constexpr decltype(auto) maybe_move(typename std::remove_reference_t<T>& v) {
@@ -193,7 +193,7 @@ struct cast_f<F, CastToNoExcept, R, list<UsedSourceArgs...>, list<UnusedSourceAr
       std::is_nothrow_invocable_v<decltype(F), UsedSourceArgs&&..., UnusedSourceArgs&&...>;
   inline static constexpr decltype(auto)
   f(UsedTargetArgs... args, UnusedTargetArgs...) noexcept(CastToNoExcept || is_noexcept) {
-    return R(F(UsedSourceArgs(maybe_move<UsedTargetArgs>(args))..., UnusedSourceArgs{}...));
+    return R(F(UsedSourceArgs(maybe_move<UsedTargetArgs>(args))..., UnusedSourceArgs()...));
   }
 };
 
