@@ -448,8 +448,8 @@ Should feel familiar to users of `<algorithm>`. For example:
 * `sfn::find<list<char, float, int>, float>` is `1`
 * `sfn::find_if<list<float, double>, std::is_integral>` is `2`
 * `sfn::count<list<int, float, long>, std::is_integral>` is `2`
-* `sfn::remove<list<int, float, int, float>, float>` is `list<int, int>`
-* `sfn::remove_if<list<int, float, long>, std::is_integral>` is `list<int, long>`
+* `sfn::remove<list<int, float, long, float>, float>` is `list<int, long>`
+* `sfn::remove_if<list<float, int, double>, std::is_integral>` is `list<float, double>`
 
 ```cpp
 template <type_list A, template <typename...> typename P>
