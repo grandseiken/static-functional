@@ -2,6 +2,7 @@
 #define STATIC_FUNCTIONAL_INCLUDE_SFN_FUNCTIONAL_H
 #include <sfn/type_list.h>
 #include <type_traits>
+#include <utility>
 
 namespace sfn {
 //-------------------------------------------------------------------------------------------------
