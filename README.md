@@ -46,7 +46,7 @@ Bazel users can use the following:
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
   name = "static_functional",
-  sha256 = "",  # TODO
+  sha256 = "f6f9dfc57e795b6f866700a17202c127b6e19916f50b96fa9aa37baddc0b8e76",
   strip_prefix = "static-functional-1.0",
   url = "https://github.com/grandseiken/static-functional/archive/v1.0.zip",
 )
@@ -79,8 +79,8 @@ Please file an issue if something doesn't work as expected. Pull requests are al
    * [Notes](#notes)
 * [&lt;sfn/type_list.h&gt;](#sfntypelisth)
    * [`sfn::list`](#sfnlist)
-   * [`Basic operations`](#basic-operations)
-   * [`Algorithms`](#algorithms)
+   * [Basic operations](#basic-operations)
+   * [Algorithms](#algorithms)
 
 # <sfn/functional.h>
 
