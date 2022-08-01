@@ -3,8 +3,8 @@ licenses(["notice"])
 cc_library(
   name = "static_functional",
   hdrs = [
-    "include/sfun/functional.h",
-    "include/sfun/type_list.h",
+    "include/sfn/functional.h",
+    "include/sfn/type_list.h",
   ],
   includes = ["include"],
   visibility = ["//visibility:public"],

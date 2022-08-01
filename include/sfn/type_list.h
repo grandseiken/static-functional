@@ -4,7 +4,7 @@
 #include <limits>
 #include <type_traits>
 
-namespace sfun {
+namespace sfn {
 
 template <typename...>
 struct list {};
@@ -197,6 +197,6 @@ using remove_if = filter<A, detail::negation_metafunction<P>::template predicate
 template <type_list A, typename T>
 using remove = remove_if<A, detail::same_as_metafunction<T>::template predicate>;
 
-}  // namespace sfun
+}  // namespace sfn
 
 #endif

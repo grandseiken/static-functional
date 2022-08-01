@@ -1,6 +1,6 @@
-#include <sfun/functional.h>
+#include <sfn/functional.h>
 
-namespace sfun {
+namespace sfn {
 namespace {
 
 struct NotDefaultConstructible {
@@ -261,10 +261,10 @@ static_assert(compose_back<&minus, &sum>(4, 3, 2) == -1);
 static_assert(compose<&accepts_move_only, &make_move_only>() == 5);
 
 }  // namespace
-}  // namespace sfun
+}  // namespace sfn
 
 int main() {
-  sfun::sequence<sfun::bind_back<sfun::cast<void(unsigned long), &sfun::g>, 1ul>,
-                 sfun::bind_front<&sfun::A::f, sfun::A{}>>();
+  sfn::sequence<sfn::bind_back<sfn::cast<void(unsigned long), &sfn::g>, 1ul>,
+                sfn::bind_front<&sfn::A::f, sfn::A{}>>();
   return 0;
 }

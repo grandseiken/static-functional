@@ -1,7 +1,7 @@
-#include <sfun/type_list.h>
+#include <sfn/type_list.h>
 #include <type_traits>
 
-namespace sfun {
+namespace sfn {
 namespace {
 struct A {
   A() = delete;
@@ -219,4 +219,4 @@ static_assert(equal<remove<list<A, B, C, D>, A>, list<B, C, D>>);
 static_assert(equal<remove<list<D, C, B, A>, A>, list<D, C, B>>);
 static_assert(equal<remove<list<B, A, A, C>, A>, list<B, C>>);
 }  // namespace
-}  // namespace sfun
+}  // namespace sfn

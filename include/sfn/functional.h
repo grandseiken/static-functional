@@ -1,10 +1,10 @@
-#ifndef STATIC_FUNCTIONAL_INCLUDE_SFUN_FUNCTIONAL_H
-#define STATIC_FUNCTIONAL_INCLUDE_SFUN_FUNCTIONAL_H
-#include <sfun/type_list.h>
+#ifndef STATIC_FUNCTIONAL_INCLUDE_SFN_FUNCTIONAL_H
+#define STATIC_FUNCTIONAL_INCLUDE_SFN_FUNCTIONAL_H
+#include <sfn/type_list.h>
 #include <functional>
 #include <type_traits>
 
-namespace sfun {
+namespace sfn {
 //-------------------------------------------------------------------------------------------------
 // function_traits
 //-------------------------------------------------------------------------------------------------
@@ -339,6 +339,6 @@ template <function auto G, function auto F>
 requires composable<decltype(G), decltype(F)>
 inline constexpr auto compose = compose_front<G, F>;
 
-}  // namespace sfun
+}  // namespace sfn
 
 #endif
