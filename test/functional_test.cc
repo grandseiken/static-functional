@@ -27,6 +27,9 @@ struct A {
   constexpr int accepts_move_only(MoveOnly&&) const {
     return 4;
   }
+  constexpr int no_except(int) const noexcept {
+    return 5;
+  }
 };
 struct ConvertsToA {
   constexpr operator A() const {
@@ -42,6 +45,9 @@ inline constexpr auto h = [](int) constexpr {
 };
 constexpr int f2(int) {
   return 2;
+}
+constexpr int f_no_except(int) noexcept {
+  return 6;
 }
 constexpr ConvertsToA make_converts_to_a() {
   return {};
@@ -75,6 +81,7 @@ inline constexpr bool equal = std::is_same_v<T, U>;
 static_assert(member_function<decltype(&A::f)>);
 static_assert(member_function<decltype(&A::g)>);
 static_assert(member_function<decltype(&A::h)>);
+static_assert(member_function<decltype(&A::no_except)>);
 static_assert(!member_function<decltype(&f)>);
 static_assert(!member_function<decltype(&g)>);
 static_assert(!member_function<int>);
@@ -82,6 +89,7 @@ static_assert(!member_function<int>);
 static_assert(function<decltype(&A::f)>);
 static_assert(function<decltype(&f)>);
 static_assert(function<decltype(&g)>);
+static_assert(function<decltype(&f_no_except)>);
 static_assert(function<void (&)(int)>);
 static_assert(function<int (*)(void)>);
 static_assert(function<int (*const)(int, int)>);
@@ -110,6 +118,8 @@ static_assert(equal<function_type_of<int(int, int)>, int(int, int)>);
 static_assert(equal<function_type_of<void (*)()>, void()>);
 static_assert(equal<function_type_of<void (*const)()>, void()>);
 static_assert(equal<function_type_of<void (&)()>, void()>);
+static_assert(equal<function_type_of<sfn::ptr<int(float)>>, int(float)>);
+static_assert(equal<function_type_of<sfn::ref<float(int)>>, float(int)>);
 static_assert(equal<function_type_of<decltype(&f)>, int()>);
 static_assert(equal<function_type_of<decltype(&g)>, void(int)>);
 static_assert(equal<function_type_of<decltype(&A::f)>, int(const A&)>);
@@ -136,6 +146,12 @@ static_assert(equal<parameter_types_of<decltype(&A::f)>, list<const A&>>);
 static_assert(equal<parameter_types_of<decltype(&A::g)>, list<A&, int>>);
 static_assert(equal<parameter_types_of<decltype(&A::h)>, list<A&, int>>);
 
+static_assert(is_noexcept<void(int) noexcept>);
+static_assert(is_noexcept<decltype(&f_no_except)>);
+static_assert(is_noexcept<decltype(&A::no_except)>);
+static_assert(!is_noexcept<int()>);
+static_assert(!is_noexcept<decltype(&f)>);
+
 static_assert(equal<function_type_of<decltype(unwrap<&f>)>, int()>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::f>)>, int(const A&)>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::g>)>, void(A&, int)>);
@@ -144,6 +160,7 @@ static_assert(unwrap<&A::f>(A{}) == 1);
 static_assert(unwrap<&f>() == 2);
 static_assert(unwrap<+h>(0) == 3);
 static_assert(unwrap<&A::accepts_move_only>(A{}, MoveOnly{}) == 4);
+static_assert(unwrap<&A::no_except>(A{}, 1) == 5);
 
 static_assert(sequencable<void()>);
 static_assert(sequencable<int(int, A), int(int, A)>);
@@ -157,15 +174,19 @@ static_assert(equal<function_type_of<decltype(sequence<&g, +h>)>, int(int)>);
 static_assert(equal<function_type_of<decltype(sequence<+h, &g>)>, void(int)>);
 static_assert(equal<function_type_of<decltype(sequence<&A::g2, &A::f>)>, int(const A&)>);
 static_assert(equal<function_type_of<decltype(sequence<&A::f, &A::g2>)>, void(const A&)>);
+static_assert(sequence<&f2> == &f2);
 static_assert(sequence<&f2>(0) == 2);
 static_assert(sequence<&f2, +h>(0) == 3);
 static_assert(sequence<+h, &f2>(0) == 2);
+static_assert(sequence<&f_no_except, &f2>(0) == 2);
 static_assert(sequence<&A::g2, &A::f>(A{}) == 1);
+static_assert(sequence<&A::g3, &A::no_except>(A{}, 0) == 5);
 
 static_assert(castable_to<void(int, int), void(int, int, int)>);
 static_assert(castable_to<void(int, int), void(int)>);
 static_assert(castable_to<int(), void()>);
 static_assert(!castable_to<void(), int()>);
+static_assert(castable_to<void(), void() noexcept>);
 static_assert(castable_to<void(int, A), void(int)>);
 static_assert(!castable_to<void(int, NotDefaultConstructible), void(int)>);
 static_assert(castable_to<ConvertsToA(), A()>);
@@ -183,6 +204,8 @@ static_assert(
     equal<function_type_of<decltype(cast<int(ConvertsToA&), &accepts_a>)>, int(ConvertsToA&)>);
 static_assert(equal<function_type_of<decltype(cast<int(const ConvertsToA&), &accepts_a>)>,
                     int(const ConvertsToA&)>);
+static_assert(is_noexcept<decltype(cast<int() noexcept, &f>)>);
+static_assert(!is_noexcept<decltype(cast<float(), &f>)>);
 static_assert(cast<int(), &f> == &f);
 static_assert(cast<float(), &f>() == 2.f);
 static_assert(cast<int(int), &f>(0) == 2);
@@ -192,6 +215,7 @@ static_assert(cast<int(ConvertsToA), &accepts_a>(ConvertsToA{}) == 4);
 static_assert(cast<int(const ConvertsToA&), &accepts_a>(ConvertsToA{}) == 4);
 static_assert(cast<float(MoveOnly), &accepts_move_only>(MoveOnly{}) == 5.f);
 static_assert(accepts_move_only(cast<MoveOnly(int), &make_move_only>(0)) == 5);
+static_assert(cast<int() noexcept, &f>() == 2);
 
 static_assert(bindable_front<void()>);
 static_assert(bindable_front<void(int)>);

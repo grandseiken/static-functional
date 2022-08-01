@@ -16,15 +16,17 @@ struct function_traits_not_impl {
   inline static constexpr bool is_member_function_ptr = false;
 };
 
-template <bool IsType, bool IsPtr, bool IsRef, bool IsMemPtr, typename R, typename... Args>
+template <bool IsType, bool IsPtr, bool IsRef, bool IsMemPtr, bool IsNoexcept, typename R,
+          typename... Args>
 struct function_traits_impl {
-  using function_type = R(Args...);
-  using return_type = R;
-  using parameter_types = list<Args...>;
   inline static constexpr bool is_function_type = IsType;
   inline static constexpr bool is_function_ptr = IsPtr;
   inline static constexpr bool is_function_ref = IsRef;
   inline static constexpr bool is_member_function_ptr = IsMemPtr;
+  inline static constexpr bool is_noexcept = IsNoexcept;
+  using function_type = R(Args...);
+  using return_type = R;
+  using parameter_types = list<Args...>;
 };
 }  // namespace detail
 
@@ -32,22 +34,40 @@ template <typename>
 struct function_traits : detail::function_traits_not_impl {};
 template <typename R, typename... Args>
 struct function_traits<R(Args...)>
-: detail::function_traits_impl<true, false, false, false, R, Args...> {};
+: detail::function_traits_impl<true, false, false, false, false, R, Args...> {};
 template <typename R, typename... Args>
 struct function_traits<R (*)(Args...)>
-: detail::function_traits_impl<false, true, false, false, R, Args...> {};
+: detail::function_traits_impl<false, true, false, false, false, R, Args...> {};
 template <typename R, typename... Args>
 struct function_traits<R (*const)(Args...)>
-: detail::function_traits_impl<false, true, false, false, R, Args...> {};
+: detail::function_traits_impl<false, true, false, false, false, R, Args...> {};
 template <typename R, typename... Args>
 struct function_traits<R (&)(Args...)>
-: detail::function_traits_impl<false, false, true, false, R, Args...> {};
+: detail::function_traits_impl<false, false, true, false, false, R, Args...> {};
 template <typename C, typename R, typename... Args>
 struct function_traits<R (C::*)(Args...)>
-: detail::function_traits_impl<false, false, false, true, R, C&, Args...> {};
+: detail::function_traits_impl<false, false, false, true, false, R, C&, Args...> {};
 template <typename C, typename R, typename... Args>
 struct function_traits<R (C::*)(Args...) const>
-: detail::function_traits_impl<false, false, false, true, R, const C&, Args...> {};
+: detail::function_traits_impl<false, false, false, true, false, R, const C&, Args...> {};
+template <typename R, typename... Args>
+struct function_traits<R(Args...) noexcept>
+: detail::function_traits_impl<true, false, false, false, true, R, Args...> {};
+template <typename R, typename... Args>
+struct function_traits<R (*)(Args...) noexcept>
+: detail::function_traits_impl<false, true, false, false, true, R, Args...> {};
+template <typename R, typename... Args>
+struct function_traits<R (*const)(Args...) noexcept>
+: detail::function_traits_impl<false, true, false, false, true, R, Args...> {};
+template <typename R, typename... Args>
+struct function_traits<R (&)(Args...) noexcept>
+: detail::function_traits_impl<false, false, true, false, true, R, Args...> {};
+template <typename C, typename R, typename... Args>
+struct function_traits<R (C::*)(Args...) noexcept>
+: detail::function_traits_impl<false, false, false, true, true, R, C&, Args...> {};
+template <typename C, typename R, typename... Args>
+struct function_traits<R (C::*)(Args...) const noexcept>
+: detail::function_traits_impl<false, false, false, true, true, R, const C&, Args...> {};
 
 //-------------------------------------------------------------------------------------------------
 // concepts & signatures
@@ -64,12 +84,16 @@ concept functional = function<T> || function_type<T>;
 
 template <function_type T>
 using ptr = T*;
+template <function_type T>
+using ref = T&;
 template <functional T>
 using function_type_of = typename function_traits<T>::function_type;
 template <functional T>
 using return_type_of = typename function_traits<T>::return_type;
 template <functional T>
 using parameter_types_of = typename function_traits<T>::parameter_types;
+template <functional T>
+inline constexpr bool is_noexcept = function_traits<T>::is_noexcept;
 
 //-------------------------------------------------------------------------------------------------
 // unwrap
@@ -146,18 +170,19 @@ constexpr bool all_constructible(list<Ts...>, list<Args...>) {
   return (std::is_constructible_v<Ts, Args> && ...);
 }
 
-template <function auto F, typename R, type_list, type_list, type_list, type_list>
+template <function auto F, bool NoExcept, typename R, type_list, type_list, type_list, type_list>
 struct cast_f;
-template <function auto F, typename R, typename... UsedSourceArgs, typename... UnusedSourceArgs,
-          typename... UsedTargetArgs, typename... UnusedTargetArgs>
-struct cast_f<F, R, list<UsedSourceArgs...>, list<UnusedSourceArgs...>, list<UsedTargetArgs...>,
-              list<UnusedTargetArgs...>> {
-  inline static constexpr decltype(auto) f(UsedTargetArgs... args, UnusedTargetArgs...) {
+template <function auto F, bool NoExcept, typename R, typename... UsedSourceArgs,
+          typename... UnusedSourceArgs, typename... UsedTargetArgs, typename... UnusedTargetArgs>
+struct cast_f<F, NoExcept, R, list<UsedSourceArgs...>, list<UnusedSourceArgs...>,
+              list<UsedTargetArgs...>, list<UnusedTargetArgs...>> {
+  inline static constexpr decltype(auto)
+  f(UsedTargetArgs... args, UnusedTargetArgs...) noexcept(NoExcept) {
     return R(F(UsedSourceArgs(maybe_move<UsedTargetArgs>(args))..., UnusedSourceArgs{}...));
   }
 };
 
-template <functional Source, functional Target>
+template <functional Source, function_type Target>
 struct cast_impl {
   using source_args = parameter_types_of<Source>;
   using target_args = parameter_types_of<Target>;
@@ -178,8 +203,8 @@ struct cast_impl {
 
   template <function auto F>
   inline static constexpr auto cast =
-      &cast_f<F, return_type_of<Target>, used_source_args, unused_source_args, used_target_args,
-              unused_target_args>::f;
+      &cast_f<F, is_noexcept<Target>, return_type_of<Target>, used_source_args, unused_source_args,
+              used_target_args, unused_target_args>::f;
 };
 
 template <function_type T, function auto F,
@@ -194,7 +219,7 @@ struct cast_if<T, F, false> {
 }  // namespace detail
 
 template <typename Source, typename Target>
-concept castable_to = functional<Source> && functional<Target> &&
+concept castable_to = functional<Source> && function_type<Target> &&
     detail::cast_impl<Source, Target>::return_type_convertible &&
     detail::cast_impl<Source, Target>::matching_parameters_convertible &&
     detail::cast_impl<Source, Target>::missing_parameters_default_constructible;
