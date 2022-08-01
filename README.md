@@ -86,7 +86,7 @@ Please file an issue if something doesn't work as expected. Pull requests are al
 
 ## Basics
 
-The library defines several concepts, used by the rest of the library for checking inputs:
+The library defines several concepts, used throughout for checking inputs:
 
 ```cpp
 template <typename T>
@@ -136,7 +136,7 @@ template <function auto F>
 inline constexpr auto unwrap = /* ... */;
 ```
 
- * If `f` is a pointer-to-member-function of some type `T`, `sfn::unwrap<f>` is a (nonmember) function pointer with converted signature (i.e. the implicit first `T&` or `const T&` parameter is made explicit), calling it has the same behaviour as invoking `f`.
+ * If `f` is a pointer-to-member-function of some type `T`, `sfn::unwrap<f>` is a (nonmember) function pointer with converted signature (i.e. the implicit first `T&` or `const T&` parameter is made explicit). Calling it has the same behaviour as invoking `f`.
  * Otherwise, `sfn::unwrap<f>` is equal to `f`.
 
 ### Example
@@ -152,7 +152,7 @@ foo_hello_fp(Foo{});                         // prints "Hello, world!"
 constexpr auto* fp = sfn::unwrap<&Foo::f>;   // type is int (*)(Foo&, int)
 ```
 
-All of the other functional operators below implicitly `sfn::unwrap` their arguments, so any pointer-to-member-function `&T::f` of type `R (T::*)(Args...)` or `R (T::*)(Args...) const` is treated by the library as if it were really a regular function pointer of type `R (*)(T&, Args...)` or, correspondingly, `R (*)(const T&, Args...)`.
+All of the other functional operators below implicitly `sfn::unwrap` their arguments, so any pointer-to-member-function `&T::f` of type `R (T::*)(Args...)` or `R (T::*)(Args...) const` is transparently handled by the library as if it were really a regular function pointer of type `R (*)(T&, Args...)` or, correspondingly, `R (*)(const T&, Args...)`.
 
 ## `sfn::sequence`
 
