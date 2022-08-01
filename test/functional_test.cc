@@ -14,7 +14,7 @@ struct MoveOnly {
   MoveOnly& operator=(const MoveOnly&) = delete;
 };
 struct A {
-  constexpr A() = default;
+  constexpr A() noexcept = default;
   constexpr int f() const {
     return 1;
   }
@@ -59,10 +59,10 @@ const ConvertsToA& const_ref_converts_to_a() {
 constexpr int accepts_a(A) {
   return 4;
 }
-constexpr int accepts_move_only(MoveOnly) {
+constexpr int accepts_move_only(MoveOnly) noexcept {
   return 5;
 }
-constexpr MoveOnly make_move_only() {
+constexpr MoveOnly make_move_only() noexcept {
   return {};
 }
 constexpr int int_identity(int x) {
@@ -155,6 +155,8 @@ static_assert(!is_noexcept<decltype(&f)>);
 static_assert(equal<function_type_of<decltype(unwrap<&f>)>, int()>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::f>)>, int(const A&)>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::g>)>, void(A&, int)>);
+static_assert(is_noexcept<decltype(unwrap<&A::no_except>)>);
+static_assert(!is_noexcept<decltype(unwrap<&A::f>)>);
 static_assert(unwrap<&f> == &f);
 static_assert(unwrap<&A::f>(A{}) == 1);
 static_assert(unwrap<&f>() == 2);
@@ -174,6 +176,8 @@ static_assert(equal<function_type_of<decltype(sequence<&g, +h>)>, int(int)>);
 static_assert(equal<function_type_of<decltype(sequence<+h, &g>)>, void(int)>);
 static_assert(equal<function_type_of<decltype(sequence<&A::g2, &A::f>)>, int(const A&)>);
 static_assert(equal<function_type_of<decltype(sequence<&A::f, &A::g2>)>, void(const A&)>);
+static_assert(is_noexcept<decltype(sequence<&f_no_except, &f_no_except>)>);
+static_assert(!is_noexcept<decltype(sequence<&f2, &f_no_except>)>);
 static_assert(sequence<&f2> == &f2);
 static_assert(sequence<&f2>(0) == 2);
 static_assert(sequence<&f2, +h>(0) == 3);
@@ -246,6 +250,8 @@ static_assert(equal<function_type_of<decltype(bind_back<&int_identity>)>, int(in
 static_assert(equal<function_type_of<decltype(bind_back<&int_identity, 42>)>, int()>);
 static_assert(equal<function_type_of<decltype(bind_back<&sum, 1>)>, int(int)>);
 static_assert(equal<function_type_of<decltype(bind_back<&A::g, 1>)>, void(A&)>);
+static_assert(is_noexcept<decltype(bind_front<&A::no_except, A{}>)>);
+static_assert(!is_noexcept<decltype(bind_front<&A::f, A{}>)>);
 static_assert(bind_front<&f> == &f);
 static_assert(bind_front<&int_identity>(42) == 42);
 static_assert(bind_front<&int_identity, 42>() == 42);
@@ -275,6 +281,9 @@ static_assert(equal<function_type_of<decltype(compose_front<&int_identity, &f>)>
 static_assert(equal<function_type_of<decltype(compose_back<&A::g, &f>)>, void(A&)>);
 static_assert(equal<function_type_of<decltype(compose<&int_identity, &int_identity>)>, int(int)>);
 static_assert(equal<function_type_of<decltype(compose<&g, &f>)>, void()>);
+static_assert(is_noexcept<decltype(compose<&accepts_move_only, &make_move_only>)>);
+static_assert(is_noexcept<decltype(compose<&f_no_except, &f_no_except>)>);
+static_assert(!is_noexcept<decltype(compose<&int_identity, &f_no_except>)>);
 static_assert(compose<&int_identity, &f>() == 2);
 static_assert(compose<&int_identity, &int_identity>(4) == 4);
 static_assert(compose<&int_identity, &A::f>(A{}) == 1);
