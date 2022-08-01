@@ -1,7 +1,6 @@
 #ifndef STATIC_FUNCTIONAL_INCLUDE_SFN_FUNCTIONAL_H
 #define STATIC_FUNCTIONAL_INCLUDE_SFN_FUNCTIONAL_H
 #include <sfn/type_list.h>
-#include <functional>
 #include <type_traits>
 
 namespace sfn {
@@ -50,6 +49,12 @@ struct function_traits<R (C::*)(Args...)>
 template <typename C, typename R, typename... Args>
 struct function_traits<R (C::*)(Args...) const>
 : detail::function_traits_impl<false, false, false, true, false, R, const C&, Args...> {};
+template <typename C, typename R, typename... Args>
+struct function_traits<R (C::*)(Args...)&>
+: detail::function_traits_impl<false, false, false, true, false, R, C&, Args...> {};
+template <typename C, typename R, typename... Args>
+struct function_traits<R (C::*)(Args...) &&>
+: detail::function_traits_impl<false, false, false, true, false, R, C&&, Args...> {};
 template <typename R, typename... Args>
 struct function_traits<R(Args...) noexcept>
 : detail::function_traits_impl<true, false, false, false, true, R, Args...> {};
@@ -68,6 +73,12 @@ struct function_traits<R (C::*)(Args...) noexcept>
 template <typename C, typename R, typename... Args>
 struct function_traits<R (C::*)(Args...) const noexcept>
 : detail::function_traits_impl<false, false, false, true, true, R, const C&, Args...> {};
+template <typename C, typename R, typename... Args>
+struct function_traits<R (C::*)(Args...)& noexcept>
+: detail::function_traits_impl<false, false, false, true, true, R, C&, Args...> {};
+template <typename C, typename R, typename... Args>
+struct function_traits<R (C::*)(Args...)&& noexcept>
+: detail::function_traits_impl<false, false, false, true, true, R, C&&, Args...> {};
 
 //-------------------------------------------------------------------------------------------------
 // concepts & signatures
@@ -114,13 +125,14 @@ template <typename... Args>
 inline constexpr bool nothrow_maybe_movable =
     ((!should_move<Args> || std::is_nothrow_move_constructible_v<std::remove_cvref_t<Args>>)&&...);
 
-template <member_function auto F, type_list>
+template <member_function auto F, typename, type_list>
 struct unwrap_f;
-template <member_function auto F, typename... Args>
-struct unwrap_f<F, list<Args...>> {
-  static inline constexpr decltype(auto) f(Args... args) noexcept(
-      std::is_nothrow_invocable_v<decltype(F), Args...>&& nothrow_maybe_movable<Args...>) {
-    return std::invoke(F, maybe_move<Args>(args)...);
+template <member_function auto F, typename C, typename... Args>
+struct unwrap_f<F, C, list<Args...>> {
+  static inline constexpr bool is_noexcept =
+      std::is_nothrow_invocable_v<decltype(F), C, Args...> && nothrow_maybe_movable<Args...>;
+  static inline constexpr decltype(auto) f(C c, Args... args) noexcept(is_noexcept) {
+    return (maybe_move<C>(c).*F)(maybe_move<Args>(args)...);
   }
 };
 template <function auto F, bool MemPtr = member_function<decltype(F)>>
@@ -129,7 +141,9 @@ struct unwrap_if {
 };
 template <function auto F>
 struct unwrap_if<F, true> {
-  static inline constexpr auto value = &unwrap_f<F, parameter_types_of<decltype(F)>>::f;
+  using parameter_types = parameter_types_of<decltype(F)>;
+  static inline constexpr auto value =
+      &unwrap_f<F, front<parameter_types>, sublist<parameter_types, 1>>::f;
 };
 }  // namespace detail
 

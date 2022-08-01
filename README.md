@@ -136,7 +136,7 @@ template <function auto F>
 inline constexpr auto unwrap = /* ... */;
 ```
 
- * If `f` is a pointer-to-member-function of some type `T`, `sfn::unwrap<f>` is a (nonmember) function pointer with converted signature (i.e. the implicit first `T&` or `const T&` parameter is made explicit). Calling it has the same behaviour as invoking `f`.
+ * If `f` is a pointer-to-member-function of some type `T`, `sfn::unwrap<f>` is a (nonmember) function pointer with converted signature (i.e. the implicit first `T&`, `const T&` or `T&&` parameter is made explicit). Calling it has the same behaviour as invoking `f`.
  * Otherwise, `sfn::unwrap<f>` is equal to `f`.
 
 ### Example
@@ -152,7 +152,7 @@ foo_hello_fp(Foo{});                         // prints "Hello, world!"
 constexpr auto* fp = sfn::unwrap<&Foo::f>;   // type is int (*)(Foo&, int)
 ```
 
-All of the other functional operators below implicitly `sfn::unwrap` their arguments, so any pointer-to-member-function `&T::f` of type `R (T::*)(Args...)` or `R (T::*)(Args...) const` is transparently handled by the library as if it were really a regular function pointer of type `R (*)(T&, Args...)` or, correspondingly, `R (*)(const T&, Args...)`.
+All of the other functional operators below implicitly `sfn::unwrap` their arguments, so any pointer-to-member-function `&T::f` of type `R (T::*)(Args...)` is transparently handled by the library as if it were a regular function pointer of type `R (*)(T&, Args...)`; similarly for `const T&` and `T&&`.
 
 ## `sfn::sequence`
 
@@ -345,7 +345,7 @@ The wrapper functions produced by `sfn` operators will be automatically be decla
 
 ### `constexpr` functions
 
-The function _pointers_ produced by `sfn` operators are `constexpr` and can be used in constant-evaluated contexts. The functions they _point_ to are also `constexpr` and can be used (i.e. the pointers can be invoked) in constant-evaluated contexts if all of the the move constructors, converting constructors and actual input functions themselves are also `constexpr`. For example:
+The function _pointers_ produced by `sfn` operators are `constexpr` and can be used in constant-evaluated contexts. The functions they _point_ to are also `constexpr` and can be used (i.e. the pointers can be invoked) in constant-evaluated contexts if all of the the move constructors, converting constructors and actual input functions involved are themselves also `constexpr`. For example:
 
 ```cpp
 constexpr int add(int x, int y) {

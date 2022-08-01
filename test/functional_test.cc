@@ -30,6 +30,12 @@ struct A {
   constexpr int no_except(int) const noexcept {
     return 5;
   }
+  constexpr int move_this() && {
+    return 6;
+  }
+  constexpr int ref_this() & {
+    return 7;
+  }
 };
 struct ConvertsToA {
   constexpr operator A() const {
@@ -155,6 +161,8 @@ static_assert(!is_noexcept<decltype(&f)>);
 static_assert(equal<function_type_of<decltype(unwrap<&f>)>, int()>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::f>)>, int(const A&)>);
 static_assert(equal<function_type_of<decltype(unwrap<&A::g>)>, void(A&, int)>);
+static_assert(equal<function_type_of<decltype(unwrap<&A::move_this>)>, int(A&&)>);
+static_assert(equal<function_type_of<decltype(unwrap<&A::ref_this>)>, int(A&)>);
 static_assert(is_noexcept<decltype(unwrap<&A::no_except>)>);
 static_assert(!is_noexcept<decltype(unwrap<&A::f>)>);
 static_assert(unwrap<&f> == &f);
@@ -163,6 +171,7 @@ static_assert(unwrap<&f>() == 2);
 static_assert(unwrap<+h>(0) == 3);
 static_assert(unwrap<&A::accepts_move_only>(A{}, MoveOnly{}) == 4);
 static_assert(unwrap<&A::no_except>(A{}, 1) == 5);
+static_assert(unwrap<&A::move_this>(A{}) == 6);
 
 static_assert(sequencable<void()>);
 static_assert(sequencable<int(int, A), int(int, A)>);
