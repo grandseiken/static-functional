@@ -17,7 +17,8 @@ int square(int x) {
   return x * x;
 }
 
-constexpr int (*fp)(int) = sfn::compose<&square, &add_one>;
+// sfn::ptr<int(int)> is an alias for int (*)(int)
+constexpr sfn::ptr<int(int)> fp = sfn::compose<&square, &add_one>;
 fp(2);  // returns 9
 ```
 
@@ -32,9 +33,14 @@ struct Foo {
   }
 };
 
-constexpr int (*fp)(const Foo&) = sfn::bind_back<&Foo::f, 42>;
+// sfn::ptr<int(const Foo&)> is an alias for int (*)(const Foo&)
+constexpr sfn::ptr<int(const Foo&)> fp = sfn::bind_back<&Foo::f, 42>;
 fp(Foo{});  // returns 42
 ```
+
+## Why?
+
+Function pointers are simple. If you want to store them somewhere, you never have to deal with type-erasure, memory allocation, or lifetimes of lambda-captures. Sometimes they're all you need. This library makes working with them feel modern and nice.
 
 ## Setup
 
@@ -54,6 +60,8 @@ http_archive(
 ```
 
 ## Compiler support
+
+Should work with any compiler that supports C++20 language features.
 
 Tested on:
 * gcc 11.2.0 (Linux)
@@ -118,7 +126,7 @@ inline constexpr bool is_noexcept = /* true if the function type of T
 
 Note that pointer-to-member-function types are transparently converted to regular function pointer types, so e.g. with `struct A { void f(); };`, `sfn::parameter_types_of<&A::f>` would be `sfn::list<A&>` (see `sfn::unwrap` below for more).
 
-Since the types involved can be awkward to write, some aliases are provided for convenience. You can use them if you don't already have something similar:
+Since function pointer types can be awkward to write, aliases are provided for convenience. You can use them if you don't already have something similar:
 
 ```cpp
 template <function_type T>
@@ -207,7 +215,7 @@ inline constexpr auto cast = /* ... */;
 
 `sfn::cast` lets you cast a function pointer from one type to another, as long as the types are reasonably compatible, obtaining a new function pointer that just does "the right thing".
 
-More concretely, consider casting a function pointer `fp` with source function type `R(Args...)` to target type `RT(ArgsT...)` using `cast<RT(ArgsT...), fp>`:
+More concretely, consider casting a function pointer `fp` with source function type `R(Args...)` to target type `RT(ArgsT...)` using `sfn::cast<RT(ArgsT...), fp>`:
   * `R` must be convertible to `RT` (`R` can be anything if `RT` is `void`).
   * `ArgsT` may have more elements than `Args`. The casted function will simply not use the additional arguments it receives.
   * `ArgsT` may have fewer elements than `Args`, as long as the missing types are default-constructible. The casted function will fill in missing values by value-initialising them.
@@ -305,13 +313,13 @@ requires composable<decltype(G), decltype(F)>
 inline constexpr auto compose = /* ... */;
 ```
 
-`sfn::compose_front<g, f>` is a pointer to a function that calls `g`, by first calling `f` to obtain the first parameter of `g`, converting if necessary, and forwarding the remaining arguments. That is, `sfn::compose_front<g, f>(xs..., ys...)` is equivalent to `g(T(f(xs...)), ys...)` (where the number of elements in `xs` is equal to the number of parameters of `f`, the number of elements in `ys` is equal to the number of parameters of `g` minus one, and `T` is the type of the first parameter of `g`).
+`sfn::compose_front<g, f>` is a pointer to a function that calls `g`, by first calling `f` to obtain the first argument for `g`, converting if necessary, and forwarding the remaining arguments. That is, `sfn::compose_front<g, f>(xs..., ys...)` is equivalent to `g(T(f(xs...)), ys...)` (where the number of elements in `xs` is equal to the number of parameters of `f`, the number of elements in `ys` is equal to the number of parameters of `g` minus one, and `T` is the type of the first parameter of `g`).
 
-Similarly, `sfn::compose_back<g, f>` calls `f` to get the last parameter for `g`, so `sfn::compose_back<g, f>(ys..., xs...)` is equivalent to `g(ys..., T(f(xs...)))`.
+Similarly, `sfn::compose_back<g, f>` calls `f` to get the last argument for `g`, so `sfn::compose_back<g, f>(ys..., xs...)` is equivalent to `g(ys..., T(f(xs...)))`.
 
 Constraints `sfn::composable_front<G, F>` and `sfn::composable_back<G, F>` check that the function type of `G` has at least one parameter, and that the return type of the function type of `F` is convertible to the appropriate parameter type of the function type of `G`.
 
-The constraint `sfn::composable<G, F>` is satisfied only when `G` has _exactly_ one parameter. In this case, `sfn::compose_front<g, f>` and `sfn::compose_back<g, f>` are equivalent, and you can just write `sfn::compose<g, f>`.
+The constraint `sfn::composable<G, F>` is similar, but satisfied only when `G` has _exactly_ one parameter. In this case, `sfn::compose_front<g, f>` and `sfn::compose_back<g, f>` are equivalent, and you can just write `sfn::compose<g, f>`.
 
 ### Example
 
@@ -325,8 +333,12 @@ int subtract(int x, int y) {
 
 constexpr int (*sub_add_left)(int, int, int) = sfn::compose_front<&subtract, &add>;
 constexpr int (*sub_add_right)(int, int, int) = sfn::compose_back<&subtract, &add>;
-sub_add_left(1, 2, 3);   // (1 + 2) - 3 = 0
-sub_add_right(1, 2, 3);  // 1 - (2 + 3) = -4
+sub_add_left(1, 2, 3);   // returns (1 + 2) - 3 = 0
+sub_add_right(1, 2, 3);  // returns 1 - (2 + 3) = -4
+
+int f();
+void g(int);
+constexpr sfn::ptr<void()> fp = sfn::compose<g, f>;  // fp() is equivalent to g(f())
 ```
 
 ## Notes
