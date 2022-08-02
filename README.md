@@ -40,7 +40,7 @@ fp(Foo{});  // returns 42
 
 ## Why?
 
-Function pointers are simple. If you want to store them somewhere, you never have to deal with type-erasure, memory allocation, or lifetimes of lambda-captures. Sometimes they're all you need. This library makes working with them feel modern and nice.
+Higher-level facilities like lambdas and `<functional>` are great, but function pointers are simple. They don't allocate memory, they can be passed around and stored without needing templates or doing type erasure, and there's no chance of lifetime issues due to hidden dependencies on lambda-captures. Sometimes they're all you need. This library makes working with them feel a bit more modern and nice.
 
 ## Setup
 
