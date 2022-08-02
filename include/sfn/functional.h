@@ -190,7 +190,7 @@ namespace detail {
 template <typename T>
 using is_default_constructible = std::is_constructible<T>;
 template <typename... Ts, typename... Args>
-constexpr bool all_constructible(list<Ts...>, list<Args...>) {
+consteval bool all_constructible(list<Ts...>, list<Args...>) {
   return (std::is_constructible_v<Ts, Args> && ...);
 }
 
@@ -238,7 +238,9 @@ struct cast_impl {
 };
 
 template <function_type T, function auto F,
-          bool IsSame = std::is_same_v<T, function_type_of<decltype(F)>>>
+          bool IsSame = std::is_same_v<T, function_type_of<decltype(F)>> ||
+              (is_noexcept<T> && is_noexcept<decltype(F)> &&
+               std::is_same_v<function_type_of<T>, function_type_of<decltype(F)>>)>
 struct cast_if {
   static inline constexpr auto value = F;
 };
@@ -257,6 +259,79 @@ concept castable_to = functional<Source> && function_type<Target> &&
 template <function_type T, function auto F>
 requires castable_to<decltype(F), T>
 inline constexpr auto cast = detail::cast_if<T, unwrap<F>>::value;
+
+//-------------------------------------------------------------------------------------------------
+// reinterpret
+//-------------------------------------------------------------------------------------------------
+namespace detail {
+template <typename From, typename To>
+inline static constexpr bool is_reinterpret_cast_valid = requires {
+  reinterpret_cast<To>(std::declval<From>());
+};
+struct Foo {};
+template <typename From, typename To>
+inline static constexpr bool is_reinterpretable = std::is_same_v<From, To> ||
+    (std::is_reference_v<From> && std::is_pointer_v<To> &&
+     is_reinterpret_cast_valid<std::remove_reference_t<From>*, To>) ||
+    (std::is_reference_v<To> && std::is_pointer_v<From> &&
+     is_reinterpret_cast_valid<From, std::remove_reference_t<To>*>) ||
+    (!std::is_reference_v<From> && !std::is_reference_v<To> && is_reinterpret_cast_valid<From, To>);
+template <typename... Froms, typename... Tos>
+consteval bool all_reinterpretable(list<Froms...>, list<Tos...>) {
+  return (is_reinterpretable<Froms, Tos> && ...);
+}
+template <typename From, typename To>
+requires is_reinterpretable<From, To>
+decltype(auto) maybe_reinterpret(typename std::remove_reference_t<From>& v) {
+  if constexpr (std::is_same_v<From, To>) {
+    return maybe_move<To>(v);
+  } else if constexpr (std::is_reference_v<From> && std::is_pointer_v<To>) {
+    return reinterpret_cast<To>(&v);
+  } else if constexpr (std::is_reference_v<To> && std::is_pointer_v<From>) {
+    return *reinterpret_cast<std::remove_reference_t<To>*>(v);
+  } else {
+    return reinterpret_cast<To>(v);
+  }
+}
+
+template <function auto F, typename SourceR, typename TargetR, type_list, type_list>
+struct reinterpret_f;
+template <function auto F, typename SourceR, typename TargetR, typename... SourceArgs,
+          typename... TargetArgs>
+struct reinterpret_f<F, SourceR, TargetR, list<SourceArgs...>, list<TargetArgs...>> {
+  inline static constexpr bool is_noexcept = nothrow_maybe_movable<SourceArgs...> &&
+      std::is_nothrow_invocable_v<decltype(F), SourceArgs&&...>;
+  inline static decltype(auto) f(TargetArgs... args) noexcept(is_noexcept) {
+    if constexpr (std::is_same_v<SourceR, TargetR>) {
+      return F(maybe_reinterpret<TargetArgs, SourceArgs>(args)...);
+    } else {
+      return reinterpret_cast<TargetR>(F(maybe_reinterpret<TargetArgs, SourceArgs>(args)...));
+    }
+  }
+};
+
+template <function_type T, function auto F,
+          bool IsSame = std::is_same_v<T, function_type_of<decltype(F)>>>
+struct reinterpret_if {
+  static inline constexpr auto value = F;
+};
+template <function_type T, function auto F>
+struct reinterpret_if<T, F, false> {
+  static inline constexpr auto value =
+      &reinterpret_f<F, return_type_of<decltype(F)>, return_type_of<T>,
+                     parameter_types_of<decltype(F)>, parameter_types_of<T>>::f;
+};
+}  // namespace detail
+
+template <typename Source, typename Target>
+concept reinterpretable_as = functional<Source> && function_type<Target> && !is_noexcept<Target> &&
+    size<parameter_types_of<Source>> == size<parameter_types_of<Target>> &&
+    detail::is_reinterpretable<return_type_of<Source>, return_type_of<Target>> &&
+    detail::all_reinterpretable(parameter_types_of<Target>{}, parameter_types_of<Source>{});
+
+template <function_type T, function auto F>
+requires reinterpretable_as<decltype(F), T>
+inline constexpr auto reinterpret = detail::reinterpret_if<T, unwrap<F>>::value;
 
 //-------------------------------------------------------------------------------------------------
 // bind_front / bind_back

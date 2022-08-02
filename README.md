@@ -1,6 +1,6 @@
 # static_functional
 
-This is a standalone header-only C++20 library providing compile-time functional operators (composition, bind, and so on) that work with raw function pointers.
+This is a standalone header-only C++20 library providing compile-time functional operators (composition, bind, and so on) that work with raw function pointers. It lets you conveniently generate new wrapper functions from existing function pointers at compile time in various ways, and call the resulting functions at runtime.
 
 A C++20 compile-time type list library is also included, mostly just to avoid the need for any transitive dependencies&mdash;the functional part requires such a library for its implementation&mdash;but it's there, and should be fairly nice to use if you want to.
 
@@ -18,7 +18,7 @@ int square(int x) {
 }
 
 // sfn::ptr<int(int)> is an alias for int (*)(int)
-constexpr sfn::ptr<int(int)> fp = sfn::compose<&square, &add_one>;
+sfn::ptr<int(int)> fp = sfn::compose<&square, &add_one>;
 fp(2);  // returns 9
 ```
 
@@ -34,13 +34,13 @@ struct Foo {
 };
 
 // sfn::ptr<int(const Foo&)> is an alias for int (*)(const Foo&)
-constexpr sfn::ptr<int(const Foo&)> fp = sfn::bind_back<&Foo::f, 42>;
+sfn::ptr<int(const Foo&)> fp = sfn::bind_back<&Foo::f, 42>;
 fp(Foo{});  // returns 42
 ```
 
 ## Why?
 
-Higher-level facilities like lambdas and `<functional>` are great, but function pointers are simple. They don't allocate memory, they can be passed around and stored without needing templates or doing type erasure, and there's no chance of lifetime issues due to hidden dependencies on lambda-captures. Sometimes they're all you need. This library makes working with them feel a bit more modern and nice.
+Higher-level facilities like lambdas and `<functional>` are great, but function pointers are simple. They don't allocate memory, they can be passed around and stored without writing templates or doing type erasure, and there's no chance of lifetime issues due to hidden dependencies on lambda-captures. Sometimes they're all you need. This library makes working with them feel a bit more modern and nice.
 
 ## Setup
 
@@ -82,6 +82,7 @@ Please file an issue if something doesn't work as expected. Pull requests are al
    * [`unwrap`](#sfnunwrap)
    * [`sequence`](#sfnsequence)
    * [`cast`](#sfncast)
+   * [`reinterpret`](#sfnreinterpret)
    * [`bind_front` and `bind_back`](#sfnbindfront-and-sfnbindback)
    * [`compose_front` and `compose_back`](#sfncomposefront-and-sfncomposeback)
    * [Notes](#notes)
@@ -155,9 +156,9 @@ struct Foo {
   int f(int);
 };
 
-constexpr void (*foo_hello_fp)(const Foo&) = sfn::unwrap<&Foo::hello>;
-foo_hello_fp(Foo{});                         // prints "Hello, world!"
-constexpr auto* fp = sfn::unwrap<&Foo::f>;   // type is int (*)(Foo&, int)
+void (*foo_hello_fp)(const Foo&) = sfn::unwrap<&Foo::hello>;
+foo_hello_fp(Foo{});               // prints "Hello, world!"
+auto* fp = sfn::unwrap<&Foo::f>;   // type is int (*)(Foo&, int)
 ```
 
 All of the other functional operators below implicitly `sfn::unwrap` their arguments, so any pointer-to-member-function `&T::f` of type `R (T::*)(Args...)` is transparently handled by the library as if it were a regular function pointer of type `R (*)(T&, Args...)`; similarly for `const T&` and `T&&`.
@@ -188,7 +189,7 @@ void f(int, int);
 int g(int, int);
 void h(int);
 
-constexpr int (*)(int, int) fp = sfn::sequence<&f, &g>;
+int (*fp)(int, int) = sfn::sequence<&f, &g>;
 fp(1, 2);                  // equivalent to (f(1, 2), g(1, 2)), returns result of g
 // sfn::sequence<&f, &h>;  // error: constraint not satisfied, parameter lists differ
 
@@ -197,7 +198,7 @@ struct Foo {
   void g() const;
 };
 
-constexpr auto* foo_fp = sfn::sequence<&Foo::f, &Foo::g>;
+auto* foo_fp = sfn::sequence<&Foo::f, &Foo::g>;
 Foo foo;
 foo_fp(foo);  // calls foo.f() and foo.g()
 ```
@@ -213,7 +214,7 @@ requires castable_to<decltype(F), T>
 inline constexpr auto cast = /* ... */;
 ```
 
-`sfn::cast` lets you cast a function pointer from one type to another, as long as the types are reasonably compatible, obtaining a new function pointer that just does "the right thing".
+`sfn::cast` lets you convert a function pointer from one type to another, as long as the types are reasonably compatible, obtaining a new function pointer that just does "the right thing".
 
 More concretely, consider casting a function pointer `fp` with source function type `R(Args...)` to target type `RT(ArgsT...)` using `sfn::cast<RT(ArgsT...), fp>`:
   * `R` must be convertible to `RT` (`R` can be anything if `RT` is `void`).
@@ -225,7 +226,7 @@ The concept `sfn::castable_to<F, T>` encodes these rules for `sfn::functional` t
 
 Adding the `noexcept` specifier to the the target type forces the type of the resulting function pointer to also have the `noexcept` specificer, regardless of whether it is present on the source type and conversions involved.
 
-If the source and target types are identical modulo `noexcept` specifier, and the target type does not have the `noexcept` specifier, `sfn::cast<T, f>` is just `f`.
+If the source and target types are identical modulo `noexcept` specifier, and either the target type does not have the `noexcept` specifier or the source already type does (i.e. the cast would do nothing), `sfn::cast<T, f>` is just `f`.
 
 ### Example
 
@@ -234,17 +235,61 @@ int sum(int x, int y) {
   return x + y;
 }
 
-constexpr void (*fp)(int, int) = sfn::cast<void(int, int), &sum>;
+void (*fp)(int, int) = sfn::cast<void(int, int), &sum>;
 fp(sum);                                           // calls sum(1, 2), discards result
 sfn::cast<int(int), &sum>(1);                      // calls sum(1, 0), returns 1
 sfn::cast<int(int, int, int), &sum>(1, 2, 42);     // calls sum(1, 2), returns 3
 sfn::cast<float(float, float), &sum>(1.5f, 2.7f);  // calls sum(1, 2), returns 3.f
 
 struct Foo {
-  void f();
+  void f() const;
+  void g();
 };
-// sfn::cast<void(const Foo&), &Foo::f>;  // error: constraint not satisfied, const Foo&
-                                          // not convertible to Foo&
+auto* foo_fp = sfn::cast<void(Foo&), &Foo::f>;  // OK
+// sfn::cast<void(const Foo&), &Foo::g>;        // error: constraint not satisfied,
+                                                // const Foo& not convertible to Foo&
+```
+
+## `sfn::reinterpret`
+
+```cpp
+template <typename Source, typename Target>
+concept reinterpretable_as = functional<Source> && function_type<Target> && /* ... */;
+
+template <function_type T, function auto F>
+requires reinterpretable_as<decltype(F), T>
+inline constexpr auto reinterpret = /* ... */;
+```
+
+`sfn::reinterpret` is similar to `sfn::cast`, in that it converts a function pointer from one type to another, but the generated function translates arguments and return values via  `reinterpret_cast`. Additionally, it will insert pointer-dereference and address-of operators to translate back and forth between pointer and reference types.
+
+It is designed for convenient interop with C libraries that incorporate callbacks with `void* userdata` pointers, and the like, as part of their API.
+
+Specifically, a function is reinterpretable as some target function type if corresponding parameter types and return types are either identical, or could be converted with `reinterpret_cast`, or are both either pointers or references of the same `const`-ness.
+
+Obviously, this is a bit dangerous and can easily lead to undefined behaviour if used incorrectly; handle with at least as much care as you would `reinterpret_cast`.
+
+### Example
+
+```cpp
+// hypothetical interface of some C library
+typedef int library_callback(void* userdata, int arg);
+int library_do_work(void* userdata, library_callback* cb);
+
+// our C++ code
+struct Foo {
+  int callback(int x) {
+    return x;
+  }
+};
+
+Foo foo;
+// library_do_work() calls foo.callback() when it invokes cb(userdata, ...)
+library_do_work(&foo, sfn::reinterpret<library_callback, &Foo::callback>);
+// sfn::reinterpret<library_callback, &Foo::callback> is equivalent to
+// int f(void* userdata, int arg) {
+//   return std::invoke(&Foo::callback, *reinterpret_cast<Foo*>(userdata), arg);
+// }
 ```
 
 ## `sfn::bind_front` and `sfn::bind_back`
@@ -265,6 +310,8 @@ inline constexpr auto bind_back = /* ... */;
 ```
 
 These are compile-time analogues of `std::bind_front` and `std::bind_back` for raw function pointers. `sfn::bind_front<f, values...>` is a pointer to a function whose behaviour is equivalent to invoking `f` with its first N parameters bound to `values`; `sfn::bind_back<f, values...>` is the same for the last N parameters.
+
+Binding zero arguments does not modify the pointer, i.e. `bind_front<f>` and `bind_back<f>` are both just `f`.
 
 As usual, the concepts `sfn::bindable_front<F, Args...>` and `sfn::bindable_back<F, Args...>`
 check that instantiations of `sfn::bind_front` and `sfn::bind_back` respectively would be valid; namely, that the function type of `F` has at least as many parameters as there are values to be bound, and that the types of the provided values are convertible to the corresponding parameter types of `F`.
@@ -331,14 +378,14 @@ int subtract(int x, int y) {
   return x - y;
 }
 
-constexpr int (*sub_add_left)(int, int, int) = sfn::compose_front<&subtract, &add>;
-constexpr int (*sub_add_right)(int, int, int) = sfn::compose_back<&subtract, &add>;
+int (*sub_add_left)(int, int, int) = sfn::compose_front<&subtract, &add>;
+int (*sub_add_right)(int, int, int) = sfn::compose_back<&subtract, &add>;
 sub_add_left(1, 2, 3);   // returns (1 + 2) - 3 = 0
 sub_add_right(1, 2, 3);  // returns 1 - (2 + 3) = -4
 
 int f();
 void g(int);
-constexpr sfn::ptr<void()> fp = sfn::compose<g, f>;  // fp() is equivalent to g(f())
+sfn::ptr<void()> fp = sfn::compose<g, f>;  // fp() is equivalent to g(f())
 ```
 
 ## Notes
@@ -357,7 +404,7 @@ The wrapper functions produced by `sfn` operators will be automatically be decla
 
 ### `constexpr` functions
 
-The function _pointers_ produced by `sfn` operators are `constexpr` and can be used in constant-evaluated contexts. The functions they _point_ to are also `constexpr` and can be used (i.e. the pointers can be invoked) in constant-evaluated contexts if all of the the move constructors, converting constructors and actual input functions involved are themselves also `constexpr`. For example:
+The function _pointers_ produced by `sfn` operators are `constexpr` and can be used in constant-evaluated contexts. With the exception of `sfn::reinterpret`, the functions they _point_ to are also `constexpr` and can be used (i.e. the pointers can be invoked) in constant-evaluated contexts if all of the the move constructors, converting constructors and actual input functions involved are themselves also `constexpr`. For example:
 
 ```cpp
 constexpr int add(int x, int y) {

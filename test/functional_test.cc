@@ -36,6 +36,9 @@ struct A {
   constexpr int ref_this() & {
     return 7;
   }
+  int c_callback(int x) {
+    return x;
+  }
 };
 struct ConvertsToA {
   constexpr operator A() const {
@@ -70,6 +73,18 @@ constexpr int accepts_move_only(MoveOnly) noexcept {
 }
 constexpr MoveOnly make_move_only() noexcept {
   return {};
+}
+constexpr int c_callback(A*) {
+  return 0;
+}
+constexpr int c_const_callback(const A*) {
+  return 1;
+}
+constexpr A* c_fetch_callback(int) {
+  return nullptr;
+}
+constexpr const A* c_const_fetch_callback(int) {
+  return nullptr;
 }
 constexpr int int_identity(int x) {
   return x;
@@ -222,6 +237,8 @@ static_assert(!is_noexcept<decltype(&f)>);
 static_assert(is_noexcept<decltype(cast<int() noexcept, &f>)>);
 static_assert(!is_noexcept<decltype(cast<float(), &f>)>);
 static_assert(cast<int(), &f> == &f);
+static_assert(cast<int(int), &f_no_except> == &f_no_except);
+static_assert(cast<int(int) noexcept, &f_no_except> == &f_no_except);
 static_assert(cast<float(), &f>() == 2.f);
 static_assert(cast<int(int), &f>(0) == 2);
 static_assert(cast<float(float), &int_identity>(1.1f) == 1.f);
@@ -232,6 +249,37 @@ static_assert(cast<int(const ConvertsToA&), &accepts_a>(ConvertsToA{}) == 4);
 static_assert(cast<float(MoveOnly), &accepts_move_only>(MoveOnly{}) == 5.f);
 static_assert(accepts_move_only(cast<MoveOnly(int), &make_move_only>(0)) == 5);
 static_assert(cast<int() noexcept, &f>() == 2);
+
+static_assert(reinterpretable_as<int(int), int(int)>);
+static_assert(reinterpretable_as<void(A*), void(void*)>);
+static_assert(reinterpretable_as<void(const A*), void(const void*)>);
+static_assert(reinterpretable_as<void*(), A*()>);
+static_assert(reinterpretable_as<const void*(), const A*()>);
+static_assert(reinterpretable_as<void*(const A*, int), A*(const void*, int)>);
+static_assert(reinterpretable_as<void(A&), void(void*)>);
+static_assert(reinterpretable_as<void(const A&), void(const void*)>);
+static_assert(reinterpretable_as<A&(), void*()>);
+static_assert(reinterpretable_as<void*(), A&()>);
+static_assert(!reinterpretable_as<int(int), int(int) noexcept>);
+static_assert(!reinterpretable_as<int(int), int(int, int)>);
+static_assert(!reinterpretable_as<int(int), void(int)>);
+static_assert(!reinterpretable_as<int(float), int(int)>);
+static_assert(!reinterpretable_as<int(int), float(int)>);
+static_assert(!reinterpretable_as<int(A), int(ConvertsToA)>);
+static_assert(!reinterpretable_as<int(A*), int(const void*)>);
+static_assert(!reinterpretable_as<const void*(), A*()>);
+static_assert(!reinterpretable_as<int(A&), int(const void*)>);
+static_assert(!reinterpretable_as<const void*(), A&()>);
+static_assert(equal<function_type_of<decltype(reinterpret<int(), &f>)>, int()>);
+static_assert(equal<function_type_of<decltype(reinterpret<int(void*), &c_callback>)>, int(void*)>);
+static_assert(equal<function_type_of<decltype(reinterpret<int(const void*), &c_const_callback>)>,
+                    int(const void*)>);
+static_assert(
+    equal<function_type_of<decltype(reinterpret<void*(int), &c_fetch_callback>)>, void*(int)>);
+static_assert(
+    equal<function_type_of<decltype(reinterpret<const void*(int), &c_const_fetch_callback>)>,
+          const void*(int)>);
+static_assert(reinterpret<int(), &f> == &f);
 
 static_assert(bindable_front<void()>);
 static_assert(bindable_front<void(int)>);
@@ -265,6 +313,7 @@ static_assert(equal<function_type_of<decltype(bind_back<&A::g, 1>)>, void(A&)>);
 static_assert(is_noexcept<decltype(bind_front<&A::no_except, A{}>)>);
 static_assert(!is_noexcept<decltype(bind_front<&A::f, A{}>)>);
 static_assert(bind_front<&f> == &f);
+static_assert(bind_back<&f> == &f);
 static_assert(bind_front<&int_identity>(42) == 42);
 static_assert(bind_front<&int_identity, 42>() == 42);
 static_assert(bind_front<&sum, 2>(1) == 3);
@@ -311,5 +360,11 @@ static_assert(compose<&accepts_move_only, &make_move_only>() == 5);
 int main() {
   sfn::sequence<sfn::bind_back<sfn::cast<void(unsigned long), &sfn::g>, 1ul>,
                 sfn::bind_front<&sfn::A::f, sfn::A{}>>();
+  sfn::reinterpret<int(void*), &sfn::c_callback>(nullptr);
+  sfn::reinterpret<int(const void*), &sfn::c_const_callback>(nullptr);
+  sfn::reinterpret<void*(int), &sfn::c_fetch_callback>(0);
+  sfn::reinterpret<const void*(int), &sfn::c_const_fetch_callback>(0);
+  sfn::A a;
+  sfn::reinterpret<int(void*, int), &sfn::A::c_callback>((void*)&a, 0);
   return 0;
 }
