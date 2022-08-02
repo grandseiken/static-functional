@@ -52,9 +52,9 @@ Bazel users can use the following:
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
   name = "static_functional",
-  sha256 = "",
-  strip_prefix = "static-functional-1.0",
-  url = "https://github.com/grandseiken/static-functional/archive/v0.1.zip",
+  sha256 = "c0055b4cbe984fc0590aa0c9eee999b4783fe14f1b38c0e1852afbe4d931a24a",
+  strip_prefix = "static-functional-1.0.0-alpha",
+  url = "https://github.com/grandseiken/static-functional/archive/refs/tags/v1.0.0-alpha.zip",
 )
 # now depend on @static_functional
 ```
