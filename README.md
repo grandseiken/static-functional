@@ -236,7 +236,7 @@ int sum(int x, int y) {
 }
 
 void (*fp)(int, int) = sfn::cast<void(int, int), &sum>;
-fp(sum);                                           // calls sum(1, 2), discards result
+fp(1, 2);                                          // calls sum(1, 2), discards result
 sfn::cast<int(int), &sum>(1);                      // calls sum(1, 0), returns 1
 sfn::cast<int(int, int, int), &sum>(1, 2, 42);     // calls sum(1, 2), returns 3
 sfn::cast<float(float, float), &sum>(1.5f, 2.7f);  // calls sum(1, 2), returns 3.f
