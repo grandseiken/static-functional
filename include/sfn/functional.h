@@ -115,24 +115,20 @@ template <typename T>
 inline constexpr bool should_move = std::is_move_constructible_v<std::remove_cvref_t<T>> &&
     !std::is_const_v<std::remove_reference_t<T>> && !std::is_lvalue_reference_v<T>;
 template <typename T>
-constexpr decltype(auto) maybe_move(typename std::remove_reference_t<T>& v) {
+constexpr decltype(auto) maybe_move(typename std::remove_reference_t<T>& v) noexcept {
   if constexpr (should_move<T>) {
     return std::move(v);
   } else {
     return v;
   }
 }
-template <typename... Args>
-inline constexpr bool nothrow_maybe_movable =
-    ((!should_move<Args> || std::is_nothrow_move_constructible_v<std::remove_cvref_t<Args>>)&&...);
 
 template <member_function auto F, typename, type_list>
 struct unwrap_f;
 template <member_function auto F, typename C, typename... Args>
 struct unwrap_f<F, C, list<Args...>> {
-  static inline constexpr bool is_noexcept =
-      std::is_nothrow_invocable_v<decltype(F), C, Args...> && nothrow_maybe_movable<Args...>;
-  static inline constexpr decltype(auto) f(C c, Args... args) noexcept(is_noexcept) {
+  static inline constexpr decltype(auto)
+  f(C c, Args... args) noexcept(noexcept((maybe_move<C>(c).*F)(maybe_move<Args>(args)...))) {
     return (maybe_move<C>(c).*F)(maybe_move<Args>(args)...);
   }
 };
@@ -159,9 +155,7 @@ template <typename, function auto... F>
 struct sequence_f;
 template <typename... Args, function auto... F>
 struct sequence_f<list<Args...>, F...> {
-  inline static constexpr bool is_noexcept =
-      (std::is_nothrow_invocable_v<decltype(F), Args...> && ...);
-  inline static constexpr decltype(auto) f(Args... args) noexcept(is_noexcept) {
+  inline static constexpr decltype(auto) f(Args... args) noexcept(noexcept((F(args...), ...))) {
     return (F(args...), ...);
   }
 };
@@ -201,13 +195,9 @@ template <function auto F, bool CastToNoExcept, typename R, typename... UsedSour
           typename... UnusedSourceArgs, typename... UsedTargetArgs, typename... UnusedTargetArgs>
 struct cast_f<F, CastToNoExcept, R, list<UsedSourceArgs...>, list<UnusedSourceArgs...>,
               list<UsedTargetArgs...>, list<UnusedTargetArgs...>> {
-  inline static constexpr bool is_noexcept = nothrow_maybe_movable<UsedTargetArgs...> &&
-      std::is_nothrow_constructible_v<R, return_type_of<decltype(F)>> &&
-      (std::is_nothrow_constructible_v<UnusedSourceArgs> && ...) &&
-      (std::is_nothrow_constructible_v<UsedSourceArgs, UsedTargetArgs> && ...) &&
-      std::is_nothrow_invocable_v<decltype(F), UsedSourceArgs&&..., UnusedSourceArgs&&...>;
-  inline static constexpr decltype(auto)
-  f(UsedTargetArgs... args, UnusedTargetArgs...) noexcept(CastToNoExcept || is_noexcept) {
+  inline static constexpr decltype(auto) f(UsedTargetArgs... args, UnusedTargetArgs...) noexcept(
+      CastToNoExcept ||
+      noexcept(R(F(UsedSourceArgs(maybe_move<UsedTargetArgs>(args))..., UnusedSourceArgs()...)))) {
     return R(F(UsedSourceArgs(maybe_move<UsedTargetArgs>(args))..., UnusedSourceArgs()...));
   }
 };
@@ -282,7 +272,7 @@ consteval bool all_reinterpretable(list<Froms...>, list<Tos...>) {
 }
 template <typename From, typename To>
 requires is_reinterpretable<From, To>
-decltype(auto) maybe_reinterpret(typename std::remove_reference_t<From>& v) {
+decltype(auto) maybe_reinterpret(typename std::remove_reference_t<From>& v) noexcept {
   if constexpr (std::is_same_v<From, To>) {
     return maybe_move<To>(v);
   } else if constexpr (std::is_reference_v<From> && std::is_pointer_v<To>) {
@@ -299,11 +289,15 @@ struct reinterpret_f;
 template <function auto F, typename SourceR, typename TargetR, typename... SourceArgs,
           typename... TargetArgs>
 struct reinterpret_f<F, SourceR, TargetR, list<SourceArgs...>, list<TargetArgs...>> {
-  inline static constexpr bool is_noexcept = nothrow_maybe_movable<SourceArgs...> &&
-      std::is_nothrow_invocable_v<decltype(F), SourceArgs&&...>;
-  inline static decltype(auto) f(TargetArgs... args) noexcept(is_noexcept) {
+  inline static decltype(auto)
+  f(TargetArgs... args) noexcept(noexcept(F(maybe_reinterpret<TargetArgs, SourceArgs>(args)...))) {
     if constexpr (std::is_same_v<SourceR, TargetR>) {
       return F(maybe_reinterpret<TargetArgs, SourceArgs>(args)...);
+    } else if constexpr (std::is_reference_v<SourceR> && std::is_pointer_v<TargetR>) {
+      return reinterpret_cast<TargetR>(&F(maybe_reinterpret<TargetArgs, SourceArgs>(args)...));
+    } else if constexpr (std::is_reference_v<TargetR> && std::is_pointer_v<SourceR>) {
+      return *reinterpret_cast<std::remove_reference_t<TargetR>*>(
+          F(maybe_reinterpret<TargetArgs, SourceArgs>(args)...));
     } else {
       return reinterpret_cast<TargetR>(F(maybe_reinterpret<TargetArgs, SourceArgs>(args)...));
     }
@@ -339,20 +333,20 @@ inline constexpr auto reinterpret = detail::reinterpret_if<T, unwrap<F>>::value;
 namespace detail {
 template <bool Front, function auto F, type_list, type_list, auto...>
 struct bind_f;
-template <bool Front, function auto F, typename... BoundArgs, typename... UnboundArgs,
-          auto... Values>
-struct bind_f<Front, F, list<BoundArgs...>, list<UnboundArgs...>, Values...> {
-  inline static constexpr bool is_noexcept =
-      nothrow_maybe_movable<UnboundArgs...> &&
-      (std::is_nothrow_constructible_v<BoundArgs, const decltype(Values)&> && ...) &&
-      (!Front || std::is_nothrow_invocable_v<decltype(F), BoundArgs..., UnboundArgs...>)&&(
-          Front || std::is_nothrow_invocable_v<decltype(F), UnboundArgs..., BoundArgs...>);
-  inline static constexpr decltype(auto) f(UnboundArgs... args) noexcept(is_noexcept) {
-    if constexpr (Front) {
-      return F(BoundArgs(Values)..., maybe_move<UnboundArgs>(args)...);
-    } else {
-      return F(maybe_move<UnboundArgs>(args)..., BoundArgs(Values)...);
-    }
+template <function auto F, typename... BoundArgs, typename... UnboundArgs, auto... Values>
+struct bind_f<true, F, list<BoundArgs...>, list<UnboundArgs...>, Values...> {
+  inline static constexpr decltype(auto)
+  f(UnboundArgs... args) noexcept(noexcept(F(BoundArgs(Values)...,
+                                             maybe_move<UnboundArgs>(args)...))) {
+    return F(BoundArgs(Values)..., maybe_move<UnboundArgs>(args)...);
+  }
+};
+template <function auto F, typename... BoundArgs, typename... UnboundArgs, auto... Values>
+struct bind_f<false, F, list<BoundArgs...>, list<UnboundArgs...>, Values...> {
+  inline static constexpr decltype(auto)
+  f(UnboundArgs... args) noexcept(noexcept(F(maybe_move<UnboundArgs>(args)...,
+                                             BoundArgs(Values)...))) {
+    return F(maybe_move<UnboundArgs>(args)..., BoundArgs(Values)...);
   }
 };
 
@@ -407,11 +401,9 @@ struct compose_front_f;
 template <typename... GArgs, typename... FArgs, typename ComposedArg, function auto G,
           function auto F>
 struct compose_front_f<list<GArgs...>, list<FArgs...>, ComposedArg, G, F> {
-  inline static constexpr bool is_noexcept = nothrow_maybe_movable<GArgs...> &&
-      nothrow_maybe_movable<FArgs...> && std::is_nothrow_invocable_v<decltype(F), FArgs...> &&
-      std::is_nothrow_invocable_v<decltype(G), ComposedArg&&, GArgs...> &&
-      std::is_nothrow_constructible_v<ComposedArg, return_type_of<decltype(F)>>;
-  inline static constexpr decltype(auto) f(FArgs... fargs, GArgs... gargs) noexcept(is_noexcept) {
+  inline static constexpr decltype(auto)
+  f(FArgs... fargs, GArgs... gargs) noexcept(noexcept(G(ComposedArg(F(maybe_move<FArgs>(fargs)...)),
+                                                        maybe_move<GArgs>(gargs)...))) {
     return G(ComposedArg(F(maybe_move<FArgs>(fargs)...)), maybe_move<GArgs>(gargs)...);
   }
 };
@@ -421,11 +413,8 @@ struct compose_back_f;
 template <typename... GArgs, typename... FArgs, typename ComposedArg, function auto G,
           function auto F>
 struct compose_back_f<list<GArgs...>, list<FArgs...>, ComposedArg, G, F> {
-  inline static constexpr bool is_noexcept = nothrow_maybe_movable<GArgs...> &&
-      nothrow_maybe_movable<FArgs...> && std::is_nothrow_invocable_v<decltype(F), FArgs...> &&
-      std::is_nothrow_invocable_v<decltype(G), GArgs..., ComposedArg&&> &&
-      std::is_nothrow_constructible_v<ComposedArg, return_type_of<decltype(F)>>;
-  inline static constexpr decltype(auto) f(GArgs... gargs, FArgs... fargs) noexcept(is_noexcept) {
+  inline static constexpr decltype(auto) f(GArgs... gargs, FArgs... fargs) noexcept(
+      noexcept(G(maybe_move<GArgs>(gargs)..., ComposedArg(F(maybe_move<FArgs>(fargs)...))))) {
     return G(maybe_move<GArgs>(gargs)..., ComposedArg(F(maybe_move<FArgs>(fargs)...)));
   }
 };
