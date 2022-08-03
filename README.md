@@ -44,7 +44,7 @@ Higher-level facilities like lambdas and `<functional>` are great, but function 
 
 ## Setup
 
-All you need is the two header files in `include/sfn`.
+All you need is the two header files in `include/sfn` and the `include` directory on your include path.
 
 Bazel users can use the following:
 
@@ -52,9 +52,9 @@ Bazel users can use the following:
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
   name = "static_functional",
-  sha256 = "c0055b4cbe984fc0590aa0c9eee999b4783fe14f1b38c0e1852afbe4d931a24a",
-  strip_prefix = "static-functional-1.0.0-alpha",
-  url = "https://github.com/grandseiken/static-functional/archive/refs/tags/v1.0.0-alpha.zip",
+  sha256 = "",  # TODO
+  strip_prefix = "static-functional-1.0.0-alpha1",
+  url = "https://github.com/grandseiken/static-functional/archive/refs/tags/v1.0.0-alpha1.zip",
 )
 # now depend on @static_functional
 ```
