@@ -265,7 +265,7 @@ inline constexpr auto reinterpret = /* ... */;
 
 It is designed for convenient interop with C libraries that incorporate callbacks with `void* userdata` pointers, and the like, as part of their API.
 
-Specifically, a function is reinterpretable as some target function type if corresponding parameter types and return types are either identical, or could be converted with `reinterpret_cast`, or are both either pointers or references of the same `const`-ness.
+Specifically, a function is reinterpretable as some target function type if corresponding parameter types and return types are either identical, or could be converted with `reinterpret_cast`, or one is a pointer and the other is a reference and both have the same `const`-ness.
 
 Obviously, this is a bit dangerous and can easily lead to undefined behaviour if used incorrectly; handle with at least as much care as you would `reinterpret_cast`.
 
