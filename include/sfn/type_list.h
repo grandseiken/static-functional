@@ -7,7 +7,9 @@
 namespace sfn {
 
 template <typename...>
-struct list {};
+struct list {
+  constexpr list() = default;
+};
 
 template <typename>
 inline constexpr bool is_type_list = false;
