@@ -184,7 +184,7 @@ namespace detail {
 template <typename T>
 using is_default_constructible = std::is_constructible<T>;
 template <typename... Ts, typename... Args>
-consteval bool all_constructible(list<Ts...>, list<Args...>) {
+constexpr bool all_constructible(list<Ts...>, list<Args...>) {
   return (std::is_constructible_v<Ts, Args> && ...);
 }
 
@@ -267,7 +267,7 @@ inline static constexpr bool is_reinterpretable = std::is_same_v<From, To> ||
      is_reinterpret_cast_valid<From, std::remove_reference_t<To>*>) ||
     (!std::is_reference_v<From> && !std::is_reference_v<To> && is_reinterpret_cast_valid<From, To>);
 template <typename... Froms, typename... Tos>
-consteval bool all_reinterpretable(list<Froms...>, list<Tos...>) {
+constexpr bool all_reinterpretable(list<Froms...>, list<Tos...>) {
   return (is_reinterpretable<Froms, Tos> && ...);
 }
 template <typename From, typename To>

@@ -7,9 +7,7 @@
 namespace sfn {
 
 template <typename...>
-struct list {
-  constexpr list() = default;
-};
+struct list {};
 
 template <typename>
 inline constexpr bool is_type_list = false;
@@ -28,17 +26,17 @@ inline constexpr std::size_t npos = std::numeric_limits<std::size_t>::max();
 
 namespace detail {
 template <typename... As, typename... Bs>
-consteval auto concat_impl(list<As...>, list<Bs...>) -> list<As..., Bs...>;
+constexpr auto concat_impl(list<As...>, list<Bs...>) -> list<As..., Bs...>;
 template <typename T, typename... Ts>
-consteval auto append_impl(list<Ts...>) -> list<Ts..., T>;
+constexpr auto append_impl(list<Ts...>) -> list<Ts..., T>;
 template <typename T, typename... Ts>
-consteval auto prepend_impl(list<Ts...>) -> list<T, Ts...>;
+constexpr auto prepend_impl(list<Ts...>) -> list<T, Ts...>;
 template <typename T, typename... Ts>
-consteval auto drop_front_impl(list<T, Ts...>) -> list<Ts...>;
+constexpr auto drop_front_impl(list<T, Ts...>) -> list<Ts...>;
 template <typename T, typename... Ts>
-consteval auto front_impl(list<T, Ts...>) -> T;
+constexpr auto front_impl(list<T, Ts...>) -> T;
 template <template <typename...> typename Template, typename... Ts>
-consteval auto to_impl(list<Ts...>) -> Template<Ts...>;
+constexpr auto to_impl(list<Ts...>) -> Template<Ts...>;
 }  // namespace detail
 
 template <type_list A, type_list B>
@@ -56,7 +54,7 @@ using to = decltype(detail::to_impl<Template>(A{}));
 
 namespace detail {
 template <type_list A>
-consteval auto drop_back_impl(A) {
+constexpr auto drop_back_impl(A) {
   if constexpr (size<A> == 1) {
     return list<>{};
   } else {
@@ -65,7 +63,7 @@ consteval auto drop_back_impl(A) {
 }
 
 template <std::size_t N, type_list A>
-consteval auto get_impl(A) {
+constexpr auto get_impl(A) {
   if constexpr (N == 0) {
     return list<front<A>>{};
   } else {
@@ -74,7 +72,7 @@ consteval auto get_impl(A) {
 }
 
 template <std::size_t Index, std::size_t Size, type_list A>
-consteval auto sublist_impl(A) {
+constexpr auto sublist_impl(A) {
   if constexpr (empty<A> || Size == 0) {
     return list<>{};
   } else if constexpr (Index == 0) {
@@ -85,7 +83,7 @@ consteval auto sublist_impl(A) {
 }
 
 template <template <typename...> typename F, typename... Ts>
-consteval auto apply_impl() {
+constexpr auto apply_impl() {
   if constexpr (requires { typename F<Ts...>::type; }) {
     return list<typename F<Ts...>::type>{};
   } else {
@@ -112,17 +110,17 @@ using apply = front<decltype(detail::apply_impl<F, Ts...>())>;
 
 namespace detail {
 template <template <typename...> typename P, typename... Ts>
-consteval bool all_of_impl(list<Ts...>) {
+constexpr bool all_of_impl(list<Ts...>) {
   return (P<Ts>::value && ...);
 }
 
 template <template <typename...> typename P, typename... Ts>
-consteval bool any_of_impl(list<Ts...>) {
+constexpr bool any_of_impl(list<Ts...>) {
   return (P<Ts>::value || ...);
 }
 
 template <template <typename...> typename P, type_list A>
-consteval std::size_t find_if_impl(A) {
+constexpr std::size_t find_if_impl(A) {
   if constexpr (empty<A>) {
     return 0;
   } else if constexpr (P<front<A>>::value) {
@@ -133,12 +131,12 @@ consteval std::size_t find_if_impl(A) {
 }
 
 template <template <typename...> typename P, typename... Ts>
-consteval std::size_t count_if_impl(list<Ts...>) {
+constexpr std::size_t count_if_impl(list<Ts...>) {
   return ((P<Ts>::value ? 1u : 0u) + ... + 0u);
 }
 
 template <template <typename...> typename P, type_list A>
-consteval auto filter_impl(A) {
+constexpr auto filter_impl(A) {
   if constexpr (empty<A>) {
     return list<>{};
   } else if constexpr (P<front<A>>::value) {
@@ -149,7 +147,7 @@ consteval auto filter_impl(A) {
 }
 
 template <template <typename...> typename F, type_list A>
-consteval auto map_impl(A) {
+constexpr auto map_impl(A) {
   if constexpr (empty<A>) {
     return list<>{};
   } else {
